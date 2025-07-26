@@ -1,42 +1,33 @@
 {
   "name": "tokamak-demo",
-  "version": "1.0.0",
-  "description": "A Next.js application that analyzes DeFi trading transactions for profit/loss using 1inch APIs. This tool helps traders understand their trading performance by examining transaction traces, calculating gas costs, and providing comprehensive profit analysis.",
-  "main": "index.js",
+  "version": "0.1.0",
+  "private": true,
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "type-check": "tsc --noEmit"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/0xgeorgemathew/tokamak-demo.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "bugs": {
-    "url": "https://github.com/0xgeorgemathew/tokamak-demo/issues"
-  },
-  "homepage": "https://github.com/0xgeorgemathew/tokamak-demo#readme",
   "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "next": "15.4.4",
     "axios": "^1.11.0",
-    "clsx": "^2.1.1",
     "ethers": "^6.15.0",
     "lucide-react": "^0.263.1",
-    "next": "^14.2.5",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "clsx": "^2.1.1"
   },
   "devDependencies": {
-    "@tailwindcss/typography": "^0.5.16",
+    "typescript": "^5.8.3",
     "@types/node": "^20.19.9",
     "@types/react": "^18.3.23",
     "@types/react-dom": "^18.3.7",
-    "autoprefixer": "^10.4.21",
-    "eslint": "^8.57.1",
-    "eslint-config-next": "^14.2.5",
-    "postcss": "^8.5.6",
     "tailwindcss": "^3.4.17",
-    "typescript": "^5.8.3"
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.6",
+    "@tailwindcss/typography": "^0.5.16",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "15.4.4"
   }
 }

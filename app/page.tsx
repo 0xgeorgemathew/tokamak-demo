@@ -1,4 +1,3 @@
-// app/page.tsx
 "use client";
 
 import React, { useState } from "react";
@@ -89,7 +88,8 @@ export default function HomePage() {
           </div>
 
           {/* 3. Analyzer Card (Floats on top of the video with a negative margin) */}
-          <div className="relative z-10 w-full max-w-5xl animate-float -mt-[32rem]">
+          {/* CHANGE HERE: Adjusted -mt-[32rem] to -mt-80 to lower the card */}
+          <div className="relative z-10 w-full max-w-5xl animate-float -mt-80">
             <AnalyzerCard
               inputValue={inputValue}
               onInputChange={setInputValue}

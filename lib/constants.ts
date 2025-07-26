@@ -93,14 +93,6 @@ export const SUPPORTED_NETWORKS: Network[] = [
 
 export const DEFAULT_NETWORK = SUPPORTED_NETWORKS[0]; // Ethereum
 
-export const API_ENDPOINTS = {
-  TRACES: "/api/1inch/traces",
-  WEB3: "/api/1inch/web3",
-  BLOCK_TRACE: (chain: number, blockNumber: number) =>
-    `/api/1inch/traces?chain=${chain}&blockNumber=${blockNumber}`,
-  TX_TRACE: (chain: number, blockNumber: number, txHash: string) =>
-    `/api/1inch/traces?chain=${chain}&blockNumber=${blockNumber}&txHash=${txHash}`,
-};
 
 export const REGEX_PATTERNS = {
   ETHEREUM_ADDRESS: /^0x[a-fA-F0-9]{40}$/,

@@ -45,46 +45,51 @@ export default function HomePage() {
         onNetworkChange={setSelectedNetwork}
       />
 
-      <main className="relative min-h-screen flex flex-col items-center justify-center p-4">
+      <main className="relative flex flex-col items-center justify-center p-4 pt-24">
         {/* This container sets up the stage for the layered effect */}
         <div className="relative w-full flex flex-col items-center">
-          {/* 1. Hackathon Demo Pill (Top) */}
-          <div className="mb-8 z-20">
-            <GlassmorphicCard variant="glow" className="px-4 py-2 rounded-full">
-              <div className="flex items-center space-x-2 text-sm font-medium text-white">
-                <Sparkles className="w-4 h-4 text-cyan-300" />
-                <span>Unite Defi hackathon Demo</span>
-              </div>
-            </GlassmorphicCard>
+          {/* 1. Content on top of the black hole */}
+          <div className="relative z-10 flex flex-col items-center">
+            <div className="mb-8">
+              <GlassmorphicCard
+                variant="glow"
+                className="px-4 py-2 rounded-full"
+              >
+                <div className="flex items-center space-x-2 text-sm font-medium text-white">
+                  <Sparkles className="w-4 h-4 text-cyan-300" />
+                  <span>Unite Defi hackathon Demo</span>
+                </div>
+              </GlassmorphicCard>
+            </div>
+
+            <div className="text-center mb-8">
+              <h1 className="text-5xl md:text-7xl font-bold bg-gradient-to-b from-white to-white/70 bg-clip-text text-transparent mb-3 font-heading">
+                Decode Deeper
+              </h1>
+              <p className="text-lg text-slate-400">
+                Never miss a detail, flow, or connection.
+              </p>
+            </div>
           </div>
 
-          {/* 2. Header Text */}
-          <div className="text-center mb-8 z-10">
-            <h1 className="text-4xl md:text-5xl font-semibold text-white mb-3">
-              Think Deeper
-            </h1>
-            <p className="text-lg text-gray-400">
-              Never miss a detail, flow, or connection.
-            </p>
-          </div>
-
-          {/* 3. Black Hole Arc Effect (Horizon) */}
-          <div className="relative w-full max-w-6xl h-96 mb-8 z-5">
-            <div className="absolute inset-0 hero-black-hole-arc overflow-hidden">
+          {/* 2. Black Hole Video (Positioned behind the card) */}
+          <div className="relative w-[800px] h-[800px] -mt-48 z-0">
+            <div className="absolute inset-0 hero-black-hole overflow-hidden">
               <video
                 autoPlay
                 loop
                 muted
                 playsInline
-                className="w-full h-full object-cover scale-125 translate-y-8"
+                className="w-full h-full object-cover"
               >
-                <source src="/blackhole.webm" type="video/mp4" />
+                {/* Ensure you have a 'blackhole.webm' file in your /public directory */}
+                <source src="/blackhole.webm" type="video/webm" />
               </video>
             </div>
           </div>
 
-          {/* 4. Glassmorphic Card (Overlaid on Black Hole) */}
-          <div className="relative z-10 w-full max-w-5xl animate-float -mt-48">
+          {/* 3. Analyzer Card (Floats on top of the video with a negative margin) */}
+          <div className="relative z-10 w-full max-w-5xl animate-float -mt-[32rem]">
             <AnalyzerCard
               inputValue={inputValue}
               onInputChange={setInputValue}

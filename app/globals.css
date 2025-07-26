@@ -4,18 +4,28 @@
 @tailwind utilities;
 
 body {
-  /* This creates the deep purple-to-black space background */
   background-color: #030014;
+  /* Replicates the subtle hero background from Reflect */
   background-image: radial-gradient(
-    ellipse at 50% 30%,
-    hsl(260, 80%, 10%),
-    #030014 70%
+    37% 81% at 50% 26%,
+    rgba(148, 101, 255, 0.08) 0%,
+    rgba(3, 0, 20, 0) 100%
   );
   min-height: 100vh;
-  color: #e2e8f0; /* Soft white for better readability */
+  color: #e2e8f0;
+  font-family: theme("fontFamily.sans");
 }
 
-/* This is the key: it masks the video to create the soft, glowing edges */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: theme("fontFamily.heading");
+}
+
+/* This is the key: it masks the video to create the soft, circular edges */
 .hero-black-hole {
   -webkit-mask-image: radial-gradient(
     ellipse 50% 50% at 50% 50%,
@@ -25,24 +35,6 @@ body {
   mask-image: radial-gradient(
     ellipse 50% 50% at 50% 50%,
     black 60%,
-    transparent 100%
-  );
-}
-
-/* Arc effect for the repositioned blackhole video */
-.hero-black-hole-arc {
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    black 0%,
-    black 65%,
-    rgba(0, 0, 0, 0.8) 80%,
-    transparent 100%
-  );
-  mask-image: linear-gradient(
-    to bottom,
-    black 0%,
-    black 65%,
-    rgba(0, 0, 0, 0.8) 80%,
     transparent 100%
   );
 }
@@ -61,7 +53,6 @@ body {
   animation: float 8s ease-in-out infinite;
 }
 
-
 /* Enhanced glassmorphic utilities */
 .glass-ultra {
   backdrop-filter: blur(20px) saturate(180%);
@@ -75,7 +66,7 @@ body {
 }
 
 .glass-border-gradient::before {
-  content: '';
+  content: "";
   position: absolute;
   inset: 0;
   padding: 1px;

@@ -1,157 +1,52 @@
+/* app/globals.css */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --plasma-cyan: #00ffff;
-  --plasma-magenta: #ff00ff;
-  --plasma-green: #00ff00;
-  --plasma-yellow: #ffff00;
-  --plasma-purple: #8a2be2;
-  --glass-backdrop: rgba(255, 255, 255, 0.1);
-  --glass-border: rgba(255, 255, 255, 0.2);
-}
-
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
-}
-
-html,
 body {
-  max-width: 100vw;
-  overflow-x: hidden;
-  background: #000;
-  color: #fff;
-  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
-    sans-serif;
-}
-
-body {
-  background: radial-gradient(ellipse at center, #1a0033 0%, #000000 70%);
+  /* This creates the deep purple-to-black space background */
+  background-color: #030014;
+  background-image: radial-gradient(
+    ellipse at 50% 30%,
+    hsl(260, 80%, 10%),
+    #030014 70%
+  );
   min-height: 100vh;
-  position: relative;
+  color: #e2e8f0; /* Soft white for better readability */
 }
 
-/* Tokamak reactor background effect */
-body::before {
-  content: "";
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  width: 800px;
-  height: 800px;
-  transform: translate(-50%, -50%);
-  background: radial-gradient(
-    circle,
-    rgba(0, 255, 255, 0.1) 0%,
-    rgba(255, 0, 255, 0.05) 30%,
-    rgba(0, 255, 0, 0.02) 60%,
+/* This is the key: it masks the video to create the soft, glowing edges */
+.hero-black-hole {
+  -webkit-mask-image: radial-gradient(
+    ellipse 50% 50% at 50% 50%,
+    black 60%,
     transparent 100%
   );
-  border-radius: 50%;
-  pointer-events: none;
-  z-index: -1;
-  animation: pulse-plasma 8s ease-in-out infinite;
+  mask-image: radial-gradient(
+    ellipse 50% 50% at 50% 50%,
+    black 60%,
+    transparent 100%
+  );
 }
 
-/* Magnetic field lines animation */
-body::after {
-  content: "";
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  width: 600px;
-  height: 600px;
-  transform: translate(-50%, -50%);
-  border: 1px solid rgba(0, 255, 255, 0.1);
-  border-radius: 50%;
-  pointer-events: none;
-  z-index: -1;
-  animation: rotate-field 20s linear infinite;
+/* Arc effect for the repositioned blackhole video */
+.hero-black-hole-arc {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    black 0%,
+    black 65%,
+    rgba(0, 0, 0, 0.8) 80%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    black 0%,
+    black 65%,
+    rgba(0, 0, 0, 0.8) 80%,
+    transparent 100%
+  );
 }
 
-@keyframes pulse-plasma {
-  0%,
-  100% {
-    transform: translate(-50%, -50%) scale(1);
-    opacity: 0.3;
-  }
-  50% {
-    transform: translate(-50%, -50%) scale(1.1);
-    opacity: 0.6;
-  }
-}
-
-@keyframes rotate-field {
-  from {
-    transform: translate(-50%, -50%) rotate(0deg);
-  }
-  to {
-    transform: translate(-50%, -50%) rotate(360deg);
-  }
-}
-
-/* Glassmorphism utilities */
-.glass {
-  background: var(--glass-backdrop);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--glass-border);
-}
-
-.glass-intense {
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-}
-
-/* Plasma glow effects */
-.plasma-glow {
-  box-shadow: 0 0 20px rgba(0, 255, 255, 0.3), 0 0 40px rgba(255, 0, 255, 0.2),
-    0 0 60px rgba(0, 255, 0, 0.1);
-}
-
-.plasma-glow-intense {
-  box-shadow: 0 0 30px rgba(0, 255, 255, 0.5), 0 0 60px rgba(255, 0, 255, 0.3),
-    0 0 90px rgba(0, 255, 0, 0.2), inset 0 0 30px rgba(255, 255, 255, 0.1);
-}
-
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb {
-  background: rgba(0, 255, 255, 0.3);
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 255, 255, 0.5);
-}
-
-/* Selection colors */
-::selection {
-  background: rgba(0, 255, 255, 0.3);
-  color: white;
-}
-
-/* Focus styles */
-button:focus-visible,
-input:focus-visible {
-  outline: 2px solid var(--plasma-cyan);
-  outline-offset: 2px;
-}
-
-/* Animation utilities */
 @keyframes float {
   0%,
   100% {
@@ -163,51 +58,36 @@ input:focus-visible {
 }
 
 .animate-float {
-  animation: float 6s ease-in-out infinite;
+  animation: float 8s ease-in-out infinite;
 }
 
-@keyframes shimmer {
-  0% {
-    background-position: -1000px 0;
-  }
-  100% {
-    background-position: 1000px 0;
-  }
+
+/* Enhanced glassmorphic utilities */
+.glass-ultra {
+  backdrop-filter: blur(20px) saturate(180%);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.animate-shimmer {
+.glass-border-gradient {
+  position: relative;
+  overflow: hidden;
+}
+
+.glass-border-gradient::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  padding: 1px;
   background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(0, 255, 255, 0.2),
-    transparent
+    135deg,
+    rgba(255, 255, 255, 0.1) 0%,
+    rgba(255, 255, 255, 0.05) 50%,
+    rgba(255, 255, 255, 0.1) 100%
   );
-  background-size: 1000px 100%;
-  animation: shimmer 3s infinite;
-}
-
-/* Responsive typography */
-@media (max-width: 640px) {
-  html {
-    font-size: 14px;
-  }
-}
-
-/* Reduced motion */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-}
-
-/* High contrast mode */
-@media (prefers-contrast: high) {
-  .glass {
-    background: rgba(255, 255, 255, 0.2);
-    border: 2px solid rgba(255, 255, 255, 0.5);
-  }
+  border-radius: inherit;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: xor;
+  -webkit-mask-composite: xor;
+  pointer-events: none;
 }

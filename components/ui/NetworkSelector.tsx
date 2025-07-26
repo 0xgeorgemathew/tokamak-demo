@@ -23,43 +23,47 @@ export function NetworkSelector({
   return (
     <div className={cn("relative", className)}>
       <GlassmorphicCard
-        className="p-3 cursor-pointer"
+        variant={isOpen ? "glow" : "default"}
+        className="p-3 cursor-pointer transition-all duration-300 hover:scale-[1.02]"
         onClick={() => setIsOpen(!isOpen)}
         hover={true}
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div
-              className="w-3 h-3 rounded-full"
-              style={{ backgroundColor: selectedNetwork.color }}
+              className="w-3 h-3 rounded-full shadow-sm"
+              style={{ 
+                backgroundColor: selectedNetwork.color,
+                boxShadow: `0 0 8px ${selectedNetwork.color}30`
+              }}
             />
             <span className="text-white font-medium">
               {selectedNetwork.name}
             </span>
-            <span className="text-gray-400 text-sm">
+            <span className="text-gray-300 text-sm">
               {selectedNetwork.symbol}
             </span>
           </div>
           <ChevronDown
             className={cn(
-              "w-4 h-4 text-gray-400 transition-transform duration-200",
-              isOpen && "rotate-180"
+              "w-4 h-4 text-gray-300 transition-all duration-300",
+              isOpen && "rotate-180 text-cyan-400"
             )}
           />
         </div>
       </GlassmorphicCard>
 
       {isOpen && (
-        <div className="absolute top-full left-0 right-0 mt-2 z-50">
-          <GlassmorphicCard className="py-2">
+        <div className="absolute top-full left-0 right-0 mt-2 z-50 animate-in slide-in-from-top-2 duration-200">
+          <GlassmorphicCard variant="intense" className="py-2 border-white/20">
             <div className="max-h-64 overflow-y-auto">
               {SUPPORTED_NETWORKS.map((network) => (
                 <div
                   key={network.id}
                   className={cn(
-                    "flex items-center justify-between px-4 py-3 cursor-pointer transition-colors duration-200",
-                    "hover:bg-white/10",
-                    selectedNetwork.id === network.id && "bg-white/5"
+                    "flex items-center justify-between px-4 py-3 cursor-pointer transition-all duration-200 rounded-md mx-2",
+                    "hover:bg-white/15 hover:scale-[1.02]",
+                    selectedNetwork.id === network.id && "bg-white/10 border border-white/20"
                   )}
                   onClick={() => {
                     onNetworkChange(network);
@@ -68,13 +72,16 @@ export function NetworkSelector({
                 >
                   <div className="flex items-center space-x-3">
                     <div
-                      className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: network.color }}
+                      className="w-3 h-3 rounded-full shadow-sm"
+                      style={{ 
+                        backgroundColor: network.color,
+                        boxShadow: `0 0 6px ${network.color}40`
+                      }}
                     />
                     <span className="text-white font-medium">
                       {network.name}
                     </span>
-                    <span className="text-gray-400 text-sm">
+                    <span className="text-gray-300 text-sm">
                       {network.symbol}
                     </span>
                   </div>

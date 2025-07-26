@@ -40,12 +40,10 @@ export function GlassmorphicCard({
       )}
       onClick={onClick}
     >
-      {/* Plasma glow effect */}
-      <div className="absolute inset-0 rounded-inherit opacity-50">
-        <div className="absolute top-0 left-1/4 w-1/2 h-px bg-gradient-to-r from-transparent via-cyan-400 to-transparent" />
-        <div className="absolute bottom-0 right-1/4 w-1/2 h-px bg-gradient-to-r from-transparent via-purple-400 to-transparent" />
-        <div className="absolute left-0 top-1/4 h-1/2 w-px bg-gradient-to-b from-transparent via-green-400 to-transparent" />
-        <div className="absolute right-0 bottom-1/4 h-1/2 w-px bg-gradient-to-b from-transparent via-pink-400 to-transparent" />
+      {/* Subtle glow effect */}
+      <div className="absolute inset-0 rounded-inherit opacity-30">
+        <div className="absolute top-0 left-1/3 w-1/3 h-px bg-gradient-to-r from-transparent via-cyan-400/60 to-transparent" />
+        <div className="absolute bottom-0 right-1/3 w-1/3 h-px bg-gradient-to-r from-transparent via-purple-400/60 to-transparent" />
       </div>
 
       {/* Content */}

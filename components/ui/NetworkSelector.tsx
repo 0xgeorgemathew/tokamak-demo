@@ -1,104 +1,75 @@
+// components/ui/NetworkSelector.tsx
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { ChevronDown, Check } from "lucide-react";
-import { SUPPORTED_NETWORKS, DEFAULT_NETWORK } from "@/lib/constants";
+
+// --- THIS IS THE FIX ---
+// Import the TYPE from `types` and the CONSTANT from `constants`
 import { Network } from "@/lib/types";
-import { cn } from "@/lib/utils";
-import { GlassmorphicCard } from "./GlassmorphicCard";
+import { SUPPORTED_NETWORKS } from "@/lib/constants";
 
 interface NetworkSelectorProps {
   selectedNetwork: Network;
   onNetworkChange: (network: Network) => void;
-  className?: string;
 }
 
 export function NetworkSelector({
   selectedNetwork,
   onNetworkChange,
-  className,
 }: NetworkSelectorProps) {
-  const [isOpen, setIsOpen] = useState(false);
-
   return (
-    <div className={cn("relative", className)}>
-      <GlassmorphicCard
-        variant={isOpen ? "glow" : "default"}
-        className="p-3 cursor-pointer transition-all duration-300 hover:scale-[1.02]"
-        onClick={() => setIsOpen(!isOpen)}
-        hover={true}
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger asChild>
+        {/* Redesigned button with inner shadow for a premium feel */}
+        <button
+          className="flex items-center justify-between space-x-3 w-44 cursor-pointer rounded-full px-4 py-2
+                     bg-slate-900/50 backdrop-blur-lg border border-white/10 shadow-inner shadow-black/20
+                     hover:bg-slate-900/60 hover:border-white/20 transition-all duration-300
+                     focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+        >
+          <div className="flex items-center space-x-2">
             <div
-              className="w-3 h-3 rounded-full shadow-sm"
-              style={{ 
-                backgroundColor: selectedNetwork.color,
-                boxShadow: `0 0 8px ${selectedNetwork.color}30`
-              }}
+              className="w-2.5 h-2.5 rounded-full"
+              style={{ backgroundColor: selectedNetwork.color }}
             />
-            <span className="text-white font-medium">
+            <span className="text-sm font-medium text-slate-200">
               {selectedNetwork.name}
             </span>
-            <span className="text-gray-300 text-sm">
-              {selectedNetwork.symbol}
-            </span>
           </div>
-          <ChevronDown
-            className={cn(
-              "w-4 h-4 text-gray-300 transition-all duration-300",
-              isOpen && "rotate-180 text-cyan-400"
-            )}
-          />
-        </div>
-      </GlassmorphicCard>
+          <ChevronDown className="w-5 h-5 text-slate-400" />
+        </button>
+      </DropdownMenu.Trigger>
 
-      {isOpen && (
-        <div className="absolute top-full left-0 right-0 mt-2 z-50 animate-in slide-in-from-top-2 duration-200">
-          <GlassmorphicCard variant="intense" className="py-2 border-white/20">
-            <div className="max-h-64 overflow-y-auto">
-              {SUPPORTED_NETWORKS.map((network) => (
+      <DropdownMenu.Portal>
+        {/* Redesigned dropdown with a cleaner, darker glass look */}
+        <DropdownMenu.Content
+          className="w-56 mt-2 rounded-2xl border border-slate-700/80 bg-slate-900/80 p-2 backdrop-blur-2xl shadow-2xl
+                     animate-in fade-in-0 zoom-in-95"
+          sideOffset={5}
+        >
+          {SUPPORTED_NETWORKS.map((network) => (
+            <DropdownMenu.Item
+              key={network.id}
+              className="flex items-center justify-between p-2 rounded-lg text-sm text-slate-200 
+                         cursor-pointer hover:bg-white/10 focus:bg-white/10 focus:outline-none"
+              onSelect={() => onNetworkChange(network)}
+            >
+              <div className="flex items-center space-x-2">
                 <div
-                  key={network.id}
-                  className={cn(
-                    "flex items-center justify-between px-4 py-3 cursor-pointer transition-all duration-200 rounded-md mx-2",
-                    "hover:bg-white/15 hover:scale-[1.02]",
-                    selectedNetwork.id === network.id && "bg-white/10 border border-white/20"
-                  )}
-                  onClick={() => {
-                    onNetworkChange(network);
-                    setIsOpen(false);
-                  }}
-                >
-                  <div className="flex items-center space-x-3">
-                    <div
-                      className="w-3 h-3 rounded-full shadow-sm"
-                      style={{ 
-                        backgroundColor: network.color,
-                        boxShadow: `0 0 6px ${network.color}40`
-                      }}
-                    />
-                    <span className="text-white font-medium">
-                      {network.name}
-                    </span>
-                    <span className="text-gray-300 text-sm">
-                      {network.symbol}
-                    </span>
-                  </div>
-                  {selectedNetwork.id === network.id && (
-                    <Check className="w-4 h-4 text-cyan-400" />
-                  )}
-                </div>
-              ))}
-            </div>
-          </GlassmorphicCard>
-        </div>
-      )}
-
-      {/* Backdrop to close dropdown */}
-      {isOpen && (
-        <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-      )}
-    </div>
+                  className="w-2.5 h-2.5 rounded-full"
+                  style={{ backgroundColor: network.color }}
+                />
+                <span>{network.name}</span>
+              </div>
+              {selectedNetwork.id === network.id && (
+                <Check className="w-4 h-4 text-cyan-400" />
+              )}
+            </DropdownMenu.Item>
+          ))}
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
   );
 }

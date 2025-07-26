@@ -5,7 +5,6 @@
 
 body {
   background-color: #030014;
-  /* Replicates the subtle hero background from Reflect */
   background-image: radial-gradient(
     37% 81% at 50% 26%,
     rgba(148, 101, 255, 0.08) 0%,
@@ -25,7 +24,6 @@ h6 {
   font-family: theme("fontFamily.heading");
 }
 
-/* This is the key: it masks the video to create the soft, circular edges */
 .hero-black-hole {
   -webkit-mask-image: radial-gradient(
     ellipse 50% 50% at 50% 50%,
@@ -53,32 +51,40 @@ h6 {
   animation: float 8s ease-in-out infinite;
 }
 
-/* Enhanced glassmorphic utilities */
-.glass-ultra {
-  backdrop-filter: blur(20px) saturate(180%);
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.glass-border-gradient {
+/* THE DEFINITIVE MULTI-LAYERED, ILLUMINATED FRAME */
+.structural-illuminated-frame {
   position: relative;
-  overflow: hidden;
 }
 
-.glass-border-gradient::before {
+.structural-illuminated-frame::before {
   content: "";
   position: absolute;
   inset: 0;
-  padding: 1px;
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.1) 0%,
-    rgba(255, 255, 255, 0.05) 50%,
-    rgba(255, 255, 255, 0.1) 100%
-  );
   border-radius: inherit;
-  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  mask-composite: xor;
-  -webkit-mask-composite: xor;
   pointer-events: none;
+
+  /* 1. Define the thickness of the frame */
+  padding: 2px;
+
+  /* 2. Give the frame its own glass properties, distinct from the main pane */
+  background: rgba(
+    20,
+    15,
+    40,
+    0.5
+  ); /* A slightly different tint for the frame */
+  backdrop-filter: blur(8px); /* A less intense blur for the frame */
+
+  /* 3. The multi-layered shadow that creates the entire effect */
+  box-shadow:
+    /* Layer 1: The soft glow emanating UP from the top of the frame */ 0 -4px
+      16px rgba(192, 132, 252, 0.35),
+    /* Layer 2: The sharp inner highlight that defines the "glass" edge */ inset
+      0 0 0 1.5px rgba(255, 255, 255, 0.1);
+
+  /* 4. The mask that cuts out the center, leaving only the styled frame */
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
 }

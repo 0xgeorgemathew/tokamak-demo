@@ -1,11 +1,15 @@
 "use client";
 
 import React, { useState } from "react";
+// Assuming you have these components in your project structure
 import { Navbar } from "@/components/Navbar";
-import { AnalyzerCard } from "@/components/ui/AnalyzerCard";
 import { GlassmorphicCard } from "@/components/ui/GlassmorphicCard";
+import { AnalyzerCard } from "@/components/ui/AnalyzerCard";
+
+// Assuming you have these defined in a constants/types file
 import { DEFAULT_NETWORK } from "@/lib/constants";
 import { Network } from "@/lib/types";
+
 import { Sparkles } from "lucide-react";
 
 export default function HomePage() {
@@ -45,15 +49,12 @@ export default function HomePage() {
       />
 
       <main className="relative flex flex-col items-center justify-center p-4 pt-24">
-        {/* This container sets up the stage for the layered effect */}
         <div className="relative w-full flex flex-col items-center">
-          {/* 1. Content on top of the black hole */}
           <div className="relative z-10 flex flex-col items-center">
             <div className="mb-8">
-              <GlassmorphicCard
-                variant="glow"
-                className="px-4 py-2 rounded-full"
-              >
+              {/* --- FIX IS HERE --- */}
+              {/* Replaced the `style` prop with Tailwind classes */}
+              <GlassmorphicCard className="px-4 py-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20">
                 <div className="flex items-center space-x-2 text-sm font-medium text-white">
                   <Sparkles className="w-4 h-4 text-cyan-300" />
                   <span>Unite Defi hackathon Demo</span>
@@ -71,7 +72,6 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* 2. Black Hole Video (Positioned behind the card) */}
           <div className="relative w-[800px] h-[800px] -mt-48 z-0">
             <div className="absolute inset-0 hero-black-hole overflow-hidden">
               <video
@@ -81,15 +81,12 @@ export default function HomePage() {
                 playsInline
                 className="w-full h-full object-cover"
               >
-                {/* Ensure you have a 'blackhole.webm' file in your /public directory */}
                 <source src="/blackhole.webm" type="video/webm" />
               </video>
             </div>
           </div>
 
-          {/* 3. Analyzer Card (Floats on top of the video with a negative margin) */}
-          {/* CHANGE HERE: Adjusted margin to perfectly align the card with the accretion disk */}
-          <div className="relative z-10 w-full max-w-5xl -mt-[24.5rem]">
+          <div className="relative z-10 w-full max-w-3xl animate-fade-up -mt-[24.5rem]">
             <AnalyzerCard
               inputValue={inputValue}
               onInputChange={setInputValue}

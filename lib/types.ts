@@ -105,3 +105,11 @@ export interface TransactionTrace {
   success: boolean;
   error?: string;
 }
+export interface Network {
+  id: number;
+  name: string;
+  symbol: string;
+  rpcUrl: string;
+  blockExplorer: string;
+  color: string;
+}

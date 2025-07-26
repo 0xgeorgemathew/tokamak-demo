@@ -1,20 +1,21 @@
 import React from "react";
 import { cn } from "@/lib/utils";
 
-interface GlassmorphicCardProps {
-  children: React.ReactNode;
-  className?: string;
+// --- FIX #1: Extend the standard HTMLAttributes for a div ---
+// This automatically gives us support for `style`, `id`, `onClick`, `children`, `className`, etc.
+interface GlassmorphicCardProps extends React.HTMLAttributes<HTMLDivElement> {
+  // We only need to define our custom props here.
   variant?: "default" | "glow" | "intense";
-  onClick?: () => void;
   hover?: boolean;
 }
 
 export function GlassmorphicCard({
+  // --- FIX #2: Destructure our custom props and use `...props` for the rest ---
   children,
   className,
   variant = "default",
-  onClick,
   hover = true,
+  ...props // `props` will now contain `onClick`, `style`, and any other div attribute
 }: GlassmorphicCardProps) {
   const baseClasses =
     "relative backdrop-blur-md border transition-all duration-300";
@@ -35,10 +36,11 @@ export function GlassmorphicCard({
         baseClasses,
         variantClasses[variant],
         hoverClasses,
-        onClick && "cursor-pointer",
+        props.onClick && "cursor-pointer", // Check for onClick on the props object
         className
       )}
-      onClick={onClick}
+      // --- FIX #3: Spread the rest of the props onto the div ---
+      {...props}
     >
       {/* Subtle glow effect */}
       <div className="absolute inset-0 rounded-inherit opacity-30">

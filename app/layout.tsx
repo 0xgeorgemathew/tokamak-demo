@@ -1,4 +1,3 @@
-// app/layout.tsx
 import type { Metadata } from "next";
 import { Inter, Space_Grotesk } from "next/font/google";
 import "./globals.css";
@@ -27,9 +26,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark">
-      <head>
-        {/* Google Fonts link can be removed as we are using next/font */}
-      </head>
+      <head></head>
       <body className={`${inter.variable} ${spaceGrotesk.variable} font-sans`}>
         {/* Animated starfield background */}
         <div className="fixed inset-0 pointer-events-none z-[-1] opacity-40">

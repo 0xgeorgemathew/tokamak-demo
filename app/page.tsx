@@ -88,8 +88,8 @@ export default function HomePage() {
           </div>
 
           {/* 3. Analyzer Card (Floats on top of the video with a negative margin) */}
-          {/* CHANGE HERE: Adjusted -mt-[32rem] to -mt-80 to lower the card */}
-          <div className="relative z-10 w-full max-w-5xl animate-float -mt-80">
+          {/* CHANGE HERE: Adjusted margin to perfectly align the card with the accretion disk */}
+          <div className="relative z-10 w-full max-w-5xl -mt-[24.5rem]">
             <AnalyzerCard
               inputValue={inputValue}
               onInputChange={setInputValue}

@@ -1067,7 +1067,6 @@ const ResultCard = ({ result }: { result: TransactionAnalysisResult }) => {
           className='relative overflow-hidden'
           style={{
             padding: '20px',
-            borderRadius: '30px',
             ...premiumGlassStyle,
             background: 'radial-gradient(circle at 50% 50%, rgba(16, 185, 129, 0.06) 0%, rgba(16, 185, 129, 0.01) 100%)',
           }}

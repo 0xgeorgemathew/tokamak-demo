@@ -1166,8 +1166,9 @@ const ResultCard = ({ result }: { result: TransactionAnalysisResult }) => {
         >
           <div className='flex flex-wrap gap-2'>
             {updatedProtocols.map((protocol, index) => {
-              const isUniswap = protocol.toLowerCase().includes('uniswap');
-              const isWETH = protocol.toLowerCase().includes('weth');
+              const protocolStr = typeof protocol === 'string' ? protocol : String(protocol);
+              const isUniswap = protocolStr.toLowerCase().includes('uniswap');
+              const isWETH = protocolStr.toLowerCase().includes('weth');
               const getProtocolIcon = () => {
                 if (isUniswap) return <Link className='w-4 h-4' />;
                 if (isWETH) return <Gem className='w-4 h-4' />;
@@ -1197,7 +1198,7 @@ const ResultCard = ({ result }: { result: TransactionAnalysisResult }) => {
                   }}
                 >
                   <div className='text-sm'>{getProtocolIcon()}</div>
-                  <span className='font-medium'>{protocol}</span>
+                  <span className='font-medium'>{protocolStr}</span>
                 </div>
               );
             })}

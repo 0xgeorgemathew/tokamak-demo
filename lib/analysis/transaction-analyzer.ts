@@ -828,6 +828,124 @@ async function detectSandwichAcrossBlocks(
   return null;
 }
 
+async function detectCrossBlockSandwich(
+  chainId: number,
+  frontRunTxHash: string,
+  frontRunBlockNumber: number,
+  attackerAddress: string
+): Promise<{
+  victimHash: string;
+  backRunHash: string;
+  victimBlockNumber: number;
+  backRunBlockNumber: number;
+} | null> {
+  Logger.info(`Searching for sandwich pattern across blocks starting from ${frontRunBlockNumber}`);
+  
+  // Step 1: Look for victim transaction in the same block first, then next blocks
+  let victimHash = null;
+  let victimBlockNumber = frontRunBlockNumber;
+  
+  // Search current block and next 3 blocks for victim
+  for (let blockOffset = 0; blockOffset <= 3; blockOffset++) {
+    const searchBlockNumber = frontRunBlockNumber + blockOffset;
+    try {
+      const block = await callRpc(chainId, 'eth_getBlockByNumber', [`0x${searchBlockNumber.toString(16)}`, true]);
+      const txs = block.transactions;
+      
+      if (blockOffset === 0) {
+        // In same block, look for transactions after the front-run
+        const frontRunIndex = txs.findIndex((tx: any) => tx.hash === frontRunTxHash);
+        if (frontRunIndex !== -1) {
+          // Look for victim transaction immediately after front-run
+          for (let i = frontRunIndex + 1; i < txs.length; i++) {
+            if (txs[i].from.toLowerCase() !== attackerAddress.toLowerCase()) {
+              victimHash = txs[i].hash;
+              victimBlockNumber = searchBlockNumber;
+              Logger.info(`Found potential victim in same block: ${victimHash}`);
+              break;
+            }
+          }
+        }
+      } else {
+        // In subsequent blocks, look for any transaction not from attacker
+        for (let i = 0; i < Math.min(txs.length, 10); i++) {
+          if (txs[i].from.toLowerCase() !== attackerAddress.toLowerCase()) {
+            victimHash = txs[i].hash;
+            victimBlockNumber = searchBlockNumber;
+            Logger.info(`Found potential victim in block ${searchBlockNumber}: ${victimHash}`);
+            break;
+          }
+        }
+      }
+      
+      if (victimHash) break;
+    } catch (error) {
+      Logger.error(`Failed to fetch block ${searchBlockNumber}: ${error}`);
+    }
+  }
+  
+  if (!victimHash) {
+    Logger.info('No potential victim transaction found');
+    return null;
+  }
+  
+  // Step 2: Look for back-run transaction from same attacker after victim
+  let backRunHash = null;
+  let backRunBlockNumber = victimBlockNumber;
+  
+  // Search from victim block to next 3 blocks for back-run
+  for (let blockOffset = 0; blockOffset <= 3; blockOffset++) {
+    const searchBlockNumber = victimBlockNumber + blockOffset;
+    try {
+      const block = await callRpc(chainId, 'eth_getBlockByNumber', [`0x${searchBlockNumber.toString(16)}`, true]);
+      const txs = block.transactions;
+      
+      if (blockOffset === 0) {
+        // In same block as victim, look after victim transaction
+        const victimIndex = txs.findIndex((tx: any) => tx.hash === victimHash);
+        if (victimIndex !== -1) {
+          for (let i = victimIndex + 1; i < txs.length; i++) {
+            if (txs[i].from.toLowerCase() === attackerAddress.toLowerCase()) {
+              backRunHash = txs[i].hash;
+              backRunBlockNumber = searchBlockNumber;
+              Logger.info(`Found back-run in same block as victim: ${backRunHash}`);
+              break;
+            }
+          }
+        }
+      } else {
+        // In subsequent blocks, look for any transaction from attacker
+        for (let i = 0; i < Math.min(txs.length, 10); i++) {
+          if (txs[i].from.toLowerCase() === attackerAddress.toLowerCase()) {
+            backRunHash = txs[i].hash;
+            backRunBlockNumber = searchBlockNumber;
+            Logger.info(`Found back-run in block ${searchBlockNumber}: ${backRunHash}`);
+            break;
+          }
+        }
+      }
+      
+      if (backRunHash) break;
+    } catch (error) {
+      Logger.error(`Failed to fetch block ${searchBlockNumber}: ${error}`);
+    }
+  }
+  
+  if (!backRunHash) {
+    Logger.info('No back-run transaction found from same attacker');
+    return null;
+  }
+  
+  Logger.info(`Cross-block sandwich pattern detected: Front-run (${frontRunTxHash}) → Victim (${victimHash}) → Back-run (${backRunHash})`);
+  
+  return {
+    victimHash,
+    backRunHash,
+    victimBlockNumber,
+    backRunBlockNumber
+  };
+}
+
 async function validateSandwichPattern(
   frontRunTrace: any,
   victimTrace: any,
@@ -1023,10 +1141,12 @@ async function analyzeSimpleTrace(chainId: number, traceData: any, metadata?: Tr
   };
 }
 
-async function detectAndAnalyzeSandwich(chainId: number, blockNumber: number, mainTxTrace: any): Promise<any | null> {
+async function detectAndAnalyzeSandwich(chainId: number, txHash: string, blockNumber: number, mainTxTrace: any): Promise<any | null> {
   Logger.info('Attempting to detect a sandwich attack pattern...');
-  const mainTxHash = mainTxTrace.transactionTrace.hash;
+  Logger.info(`🔍 Analysis Target: txHash=${txHash}, blockNumber=${blockNumber}`);
+  const mainTxHash = txHash; // Use the passed txHash instead of trying to extract from trace
   const attacker = mainTxTrace.transactionTrace.from.toLowerCase();
+  Logger.info(`👤 Attacker Address: ${attacker}`);
 
   // PRIORITY 1: Pattern-first detection (most reliable)
   Logger.info('Running pattern-first sandwich detection...');
@@ -1060,34 +1180,18 @@ async function detectAndAnalyzeSandwich(chainId: number, blockNumber: number, ma
     return await buildSandwichAnalysis(chainId, backRunPattern, 'back-run');
   }
 
-  // Fallback to original front-run detection logic
-  Logger.info(`Trying original front-run detection for attacker ${attacker}`);
-  const block = await callRpc(chainId, 'eth_getBlockByNumber', [`0x${blockNumber.toString(16)}`, true]);
-  const txs = block.transactions;
-  const frontRunIndex = txs.findIndex((tx: any) => tx.hash === mainTxHash);
-
-  if (frontRunIndex === -1 || frontRunIndex >= txs.length - 2) {
-    Logger.info('Not a sandwich: Not enough subsequent transactions for a full sandwich.');
+  // Enhanced cross-block sandwich detection
+  Logger.info(`Trying enhanced cross-block sandwich detection for attacker ${attacker}`);
+  const sandwichPattern = await detectCrossBlockSandwich(chainId, mainTxHash, blockNumber, attacker);
+  
+  if (!sandwichPattern) {
+    Logger.info('No sandwich pattern detected across blocks.');
     return null;
   }
 
-  const victimHash = txs[frontRunIndex + 1].hash;
-  Logger.info(`Potential victim transaction identified: ${victimHash}`);
+  const { victimHash, backRunHash, victimBlockNumber, backRunBlockNumber } = sandwichPattern;
 
-  let backRunHash = null;
-  for (let i = frontRunIndex + 2; i < txs.length; i++) {
-    if (txs[i].from.toLowerCase() === attacker) {
-      backRunHash = txs[i].hash;
-      break;
-    }
-  }
-
-  if (!backRunHash) {
-    Logger.info('Not a sandwich: No back-run transaction found from the same attacker.');
-    return null;
-  }
-
-  Logger.info(`Potential back-run transaction identified: ${backRunHash}. Sandwich confirmed!`);
+  Logger.info(`Cross-block sandwich confirmed! Front-run: ${mainTxHash} (block ${blockNumber}) → Victim: ${victimHash} (block ${victimBlockNumber}) → Back-run: ${backRunHash} (block ${backRunBlockNumber})`);
 
   // Analyze MEV bot behavior
   const mevProfile = await analyzeMEVBotBehavior(chainId, attacker, blockNumber);
@@ -1095,16 +1199,15 @@ async function detectAndAnalyzeSandwich(chainId: number, blockNumber: number, ma
     `MEV Bot Analysis: ${mevProfile.confidence} confidence, ${mevProfile.patterns.txFrequency} recent transactions`,
   );
 
-  // Fetch traces and analyze
+  // Fetch traces and analyze with correct block numbers
   const frontRunAnalysis = await analyzeSimpleTrace(chainId, mainTxTrace);
   const backRunReceipt = await callRpc(chainId, 'eth_getTransactionReceipt', [backRunHash]);
-  const backRunBlock = parseInt(backRunReceipt.blockNumber, 16);
-  const backRunTrace = await getTransactionTrace(chainId, backRunHash, backRunBlock);
+  const backRunTrace = await getTransactionTrace(chainId, backRunHash, backRunBlockNumber);
   const backRunMetadata = await enrichTransactionMetadata(chainId, backRunHash, backRunReceipt);
   const backRunAnalysis = await analyzeSimpleTrace(chainId, backRunTrace, backRunMetadata);
 
-  // Get victim transaction for price impact analysis
-  const victimTrace = await getTransactionTrace(chainId, victimHash, blockNumber);
+  // Get victim transaction for price impact analysis using correct block number
+  const victimTrace = await getTransactionTrace(chainId, victimHash, victimBlockNumber);
   const priceImpact = await calculatePriceImpact(chainId, mainTxTrace, victimTrace, backRunTrace);
 
   // Combine financial analysis
@@ -1132,6 +1235,11 @@ async function detectAndAnalyzeSandwich(chainId: number, blockNumber: number, ma
   return {
     type: 'Sandwich',
     confidence: 'high',
+    detectionMethod: 'cross-block',
+    // CRITICAL: Add clear sandwich indicators for LLM
+    isSandwichAttack: true,
+    sandwichDetected: true,
+    sandwichType: 'cross-block',
     victimTxHash: victimHash,
     frontRunSwap: frontRunAnalysis.swapDetails,
     backRunSwap: backRunAnalysis.swapDetails,
@@ -1140,6 +1248,23 @@ async function detectAndAnalyzeSandwich(chainId: number, blockNumber: number, ma
     combinedFinancials: {
       netProfitOrLoss: formattedCombinedProfit,
     },
+    // Enhanced detection metadata for LLM  
+    enhancedDetection: {
+      method: 'cross-block',
+      confidence: 'high',
+      patternFound: true,
+      transactionRole: 'front-run',
+      crossBlockSpan: {
+        frontRunBlock: blockNumber,
+        victimBlock: victimBlockNumber,
+        backRunBlock: backRunBlockNumber
+      },
+      relatedTransactions: {
+        frontRun: mainTxHash,
+        victim: victimHash,
+        backRun: backRunHash
+      }
+    }
   };
 }
 
@@ -1439,7 +1564,7 @@ export async function analyzeTransaction(chainId: number, txHash: string) {
 
     // Step 2: Attempt to analyze as a sandwich, passing the pre-fetched data.
     let analysis: any;
-    const sandwichData = await detectAndAnalyzeSandwich(chainId, blockNumber, mainTraceData);
+    const sandwichData = await detectAndAnalyzeSandwich(chainId, txHash, blockNumber, mainTraceData);
 
     // DEBUG: Log sandwich detection results
     Logger.info(`🔍 Sandwich Detection Results: exists=${!!sandwichData}, type=${sandwichData?.type}, isSandwichAttack=${sandwichData?.isSandwichAttack}, method=${sandwichData?.detectionMethod}`);

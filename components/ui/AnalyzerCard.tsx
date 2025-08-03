@@ -11,7 +11,6 @@ import {
   AlertTriangle,
   Zap,
   Target,
-  DollarSign,
   Coins,
   Fuel,
   ArrowUpDown,
@@ -190,7 +189,7 @@ const detectUniswapV2 = (protocols: string[], narrative: string[]): boolean => {
   return allText.includes('uni-v2') || allText.includes('uniswap v2') || allText.includes('uniswap-v2');
 };
 
-// Enhanced sandwich attack detection with aggressive pattern matching
+// Enhanced sandwich attack detection with improved false positive filtering
 const detectSandwichAttack = (
   result: TransactionAnalysisResult
 ): {
@@ -208,6 +207,51 @@ const detectSandwichAttack = (
   };
 } => {
   const { sandwichAnalysis, blockData, priceImpactAnalysis, financials, narrative, strategy } = result;
+
+  // DEBUG: Log all detection-relevant data from backend
+  console.log('🔍 Detection Debug Data:', {
+    strategy: strategy,
+    hasDetectionMethod: result.hasOwnProperty('detectionMethod'),
+    detectionMethod: (result as any).detectionMethod,
+    hasSandwichPattern: result.hasOwnProperty('sandwichPattern'),
+    sandwichPattern: (result as any).sandwichPattern,
+    hasEnhancedDetection: result.hasOwnProperty('enhancedDetection'),
+    enhancedDetection: (result as any).enhancedDetection,
+    sandwichAnalysis: sandwichAnalysis,
+    isSandwichAttack: (result as any).isSandwichAttack,
+    sandwichDetected: (result as any).sandwichDetected
+  });
+
+  // PRIORITY 1: EARLY EXIT for legitimate arbitrage transactions
+  // This must come BEFORE any backend sandwich detection checks
+  const strategyLower = strategy.toLowerCase();
+  if ((strategyLower.includes('arbitrage') || 
+       strategyLower.includes('cross-token') ||
+       strategyLower === 'cross-token arbitrage') && 
+      !strategyLower.includes('sandwich') &&
+      !strategyLower.includes('front-run') &&
+      !strategyLower.includes('back-run') &&
+      !strategyLower.includes('victim')) {
+    console.log('✅ Early Exit: Legitimate arbitrage detected, bypassing sandwich detection');
+    console.log('Strategy:', strategy);
+    return {
+      isSandwich: false,
+      type: 'none',
+      confidence: 'low',
+      details: 'Legitimate arbitrage transaction - not a sandwich attack',
+    };
+  }
+  
+  // BACKUP CHECK: If backend marked this as arbitrage but somehow has sandwich flags
+  if (strategyLower.includes('arbitrage') && !strategyLower.includes('sandwich')) {
+    console.log('🛡️ Backup Protection: Overriding backend sandwich flags for arbitrage transaction');
+    return {
+      isSandwich: false,
+      type: 'none',
+      confidence: 'low',
+      details: 'Backend-confirmed arbitrage transaction - overriding false positive sandwich detection',
+    };
+  }
 
   // Check for explicit sandwich analysis data from enhanced backend detection
   if (sandwichAnalysis) {
@@ -318,67 +362,72 @@ const detectSandwichAttack = (
     };
   }
 
-  // 2. Check narrative for sandwich patterns (enhanced keywords)
+  // 2. Check narrative for sandwich patterns (more specific keywords)
   const narrativeText = (narrative || []).join(' ').toLowerCase();
-  const narrativeKeywords = [
-    'sandwich',
-    'front-run',
-    'back-run',
-    'manipulated',
-    'sandwiched',
-    'mev',
-    'victim',
-    'attacker',
-    'frontrun',
-    'backrun',
-    'price manipulation',
-    'detected from',
-    'detected via',
+  
+  // Check for explicit backend sandwich detection first
+  const explicitSandwichKeywords = [
+    'sandwich attack',
     'front-run transaction',
-    'back-run transaction',
+    'back-run transaction', 
     'victim transaction',
     'sandwich pattern',
     'enhanced detection',
+    'detected via',
+  ];
+  
+  const generalKeywords = [
+    'manipulated',
+    'sandwiched',
+    'victim',
+    'attacker',
+    'price manipulation',
   ];
 
-  if (narrativeKeywords.some((keyword) => narrativeText.includes(keyword))) {
-    suspiciousFactors += 3;
-    details += 'Sandwich attack patterns detected in transaction narrative. ';
+  if (explicitSandwichKeywords.some((keyword) => narrativeText.includes(keyword))) {
+    suspiciousFactors += 4; // High confidence for explicit detection
+    details += 'Explicit sandwich attack detection in transaction narrative. ';
     _confidence = 'high';
+  } else if (generalKeywords.some((keyword) => narrativeText.includes(keyword))) {
+    suspiciousFactors += 2; // Moderate confidence for general keywords
+    details += 'Potential sandwich patterns detected in transaction narrative. ';
+    _confidence = 'medium';
 
-    // Determine type based on narrative content
-    if (narrativeText.includes('front-run')) {
-      return {
-        isSandwich: true,
-        type: 'front-run',
-        confidence: 'high',
-        details: 'Front-run transaction in sandwich attack detected',
-      };
-    } else if (narrativeText.includes('back-run')) {
-      return {
-        isSandwich: true,
-        type: 'back-run',
-        confidence: 'high',
-        details: 'Back-run transaction in sandwich attack detected',
-      };
-    } else if (narrativeText.includes('victim')) {
-      return {
-        isSandwich: true,
-        type: 'victim',
-        confidence: 'high',
-        details: 'Victim transaction in sandwich attack detected',
-      };
+    // Determine type based on narrative content - only for explicit detection
+    if (explicitSandwichKeywords.some(keyword => narrativeText.includes(keyword))) {
+      if (narrativeText.includes('front-run transaction')) {
+        return {
+          isSandwich: true,
+          type: 'front-run',
+          confidence: 'high',
+          details: 'Front-run transaction in sandwich attack detected',
+        };
+      } else if (narrativeText.includes('back-run transaction')) {
+        return {
+          isSandwich: true,
+          type: 'back-run',
+          confidence: 'high',
+          details: 'Back-run transaction in sandwich attack detected',
+        };
+      } else if (narrativeText.includes('victim transaction')) {
+        return {
+          isSandwich: true,
+          type: 'victim',
+          confidence: 'high',
+          details: 'Victim transaction in sandwich attack detected',
+        };
+      }
     }
   }
 
-  // 3. Check price impact patterns (lowered thresholds)
+  // 3. Check price impact patterns (raised thresholds to reduce false positives)
   if (priceImpactAnalysis) {
     const slippage = parseFloat(priceImpactAnalysis.victimSlippage || '0');
-    if (slippage > 0.5) {
-      // Even more sensitive detection
-      suspiciousFactors += slippage > 3 ? 3 : slippage > 1 ? 2 : 1;
-      details += `Suspicious slippage (${slippage}%) indicates potential sandwich victim. `;
-      _confidence = slippage > 3 ? 'high' : slippage > 1 ? 'medium' : 'low';
+    if (slippage > 5.0) {
+      // Much higher threshold - normal DeFi can have 1-3% slippage
+      suspiciousFactors += slippage > 15 ? 3 : slippage > 10 ? 2 : 1;
+      details += `High slippage (${slippage}%) indicates potential sandwich victim. `;
+      _confidence = slippage > 15 ? 'high' : slippage > 10 ? 'medium' : 'low';
     }
 
     if (
@@ -393,54 +442,54 @@ const detectSandwichAttack = (
     // Check for unusual price impact patterns
     if (priceImpactAnalysis.maxPriceImpact) {
       const impact = parseFloat(priceImpactAnalysis.maxPriceImpact.replace('%', '') || '0');
-      if (impact > 1) {
-        // Even more sensitive
-        suspiciousFactors += impact > 5 ? 2 : 1;
-        details += 'Significant price impact suggests MEV activity. ';
+      if (impact > 10) {
+        // Much higher threshold - normal trades can have 1-5% impact
+        suspiciousFactors += impact > 25 ? 2 : 1;
+        details += 'Severe price impact suggests potential MEV activity. ';
       }
     }
   }
 
-  // 4. Check financial patterns (lowered thresholds)
+  // 4. Check financial patterns (raised thresholds to reduce false positives)
   if (financials?.profit && financials?.cost) {
     const profit = parseFloat(financials.profit.split(' ')[0] || '0');
     const cost = parseFloat(financials.cost.split(' ')[0] || '0');
     const ratio = profit / cost;
 
-    if (ratio > 5) {
-      // Even more sensitive detection
-      suspiciousFactors += ratio > 50 ? 3 : ratio > 20 ? 2 : 1;
-      details += `High profit ratio (${ratio.toFixed(1)}x) suggests sandwich attack execution. `;
-      _confidence = ratio > 50 ? 'high' : ratio > 20 ? 'medium' : 'low';
+    if (ratio > 50) {
+      // Much higher threshold - only flag extremely suspicious ratios
+      suspiciousFactors += ratio > 200 ? 3 : ratio > 100 ? 2 : 1;
+      details += `Extremely high profit ratio (${ratio.toFixed(1)}x) suggests sandwich attack execution. `;
+      _confidence = ratio > 200 ? 'high' : ratio > 100 ? 'medium' : 'low';
     }
 
-    // Check for unusually profitable transactions
-    if (profit > 0.05) {
-      // Lower threshold
+    // Check for unusually profitable transactions - much higher threshold
+    if (profit > 1.0) {
+      // Raised from 0.05 to 1.0 ETH to reduce false positives
       suspiciousFactors += 1;
-      details += 'Highly profitable transaction suggests MEV extraction. ';
+      details += 'Highly profitable transaction suggests potential MEV extraction. ';
     }
   }
 
-  // 5. Check block position patterns (more aggressive)
+  // 5. Check block position patterns (less aggressive to reduce false positives)
   if (blockData) {
     const { transactionIndex, gasPrice } = blockData;
 
     if (transactionIndex !== undefined) {
-      // Early positions (0-10) or specific patterns
-      if (transactionIndex < 10) {
-        suspiciousFactors += transactionIndex < 3 ? 2 : 1;
-        details += 'Early block position suggests MEV activity. ';
+      // Only flag extremely early positions - many legitimate txs are early
+      if (transactionIndex < 3) {
+        suspiciousFactors += transactionIndex === 0 ? 2 : 1;
+        details += 'Extremely early block position suggests potential MEV activity. ';
       }
     }
 
-    // High gas prices (MEV bots often pay premium gas)
+    // High gas prices (much higher threshold)
     if (gasPrice) {
       const gasPriceNum = parseFloat(gasPrice);
-      if (gasPriceNum > 30) {
-        // Lower threshold for gas price
-        suspiciousFactors += gasPriceNum > 100 ? 2 : 1;
-        details += 'High gas price suggests MEV bot activity. ';
+      if (gasPriceNum > 150) {
+        // Raised from 30 to 150 gwei - normal users pay up to 100 gwei during congestion
+        suspiciousFactors += gasPriceNum > 300 ? 2 : 1;
+        details += 'Extremely high gas price suggests MEV bot activity. ';
       }
     }
   }
@@ -460,22 +509,23 @@ const detectSandwichAttack = (
     }
   }
 
-  // 7. Determine result based on comprehensive scoring (more sensitive)
-  if (suspiciousFactors >= 3) {
+  // 7. Determine result based on comprehensive scoring (much stricter thresholds)
+  if (suspiciousFactors >= 8) {
     return {
       isSandwich: true,
       type: details.includes('victim') || details.includes('slippage') ? 'victim' : 'attacker',
       confidence: 'high',
       details: details.trim(),
     };
-  } else if (suspiciousFactors >= 2) {
+  } else if (suspiciousFactors >= 6) {
     return {
       isSandwich: true,
       type: details.includes('profit') || details.includes('execution') ? 'attacker' : 'victim',
       confidence: 'medium',
       details: details.trim(),
     };
-  } else if (suspiciousFactors >= 1) {
+  } else if (suspiciousFactors >= 10) {
+    // Extremely high threshold to virtually eliminate false positives
     return {
       isSandwich: true,
       type: 'victim',
@@ -595,220 +645,350 @@ const ResultCard = ({ result }: { result: TransactionAnalysisResult }) => {
       ? [...(result.protocols || []), 'Uniswap V2']
       : result.protocols;
 
-  // Enhanced glassmorphism styles
-  const glassStyle = {
-    backdropFilter: 'blur(32px) saturate(180%)',
-    background: 'rgba(255, 255, 255, 0.05)',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
-    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+  // Ultra-Advanced Organic Glass System
+  const ultraGlassStyle = {
+    backdropFilter: 'blur(50px) saturate(220%)',
+    background: 'radial-gradient(circle at 30% 20%, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.03) 60%, rgba(255,255,255,0.01) 100%)',
+    border: '1px solid rgba(255,255,255,0.25)',
+    boxShadow: '0 20px 60px rgba(0,0,0,0.5), inset 0 3px 0 rgba(255,255,255,0.3), 0 0 0 1px rgba(255,255,255,0.1)',
+    borderRadius: '36px 28px 40px 32px', // Organic, non-uniform curves
+    position: 'relative' as const,
+    overflow: 'hidden' as const,
   };
 
-  const accentGlassStyle = (color: string) => ({
-    backdropFilter: 'blur(24px) saturate(180%)',
-    background: `linear-gradient(135deg, ${color}08 0%, ${color}04 100%)`,
-    border: `1px solid ${color}25`,
-    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
-  });
+  const premiumGlassStyle = {
+    backdropFilter: 'blur(45px) saturate(200%)',
+    background: 'linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.03) 100%)',
+    border: '1px solid rgba(255,255,255,0.2)',
+    boxShadow: '0 15px 45px rgba(0,0,0,0.4), inset 0 2px 0 rgba(255,255,255,0.25)',
+    borderRadius: '20px',
+    transition: 'all 0.5s cubic-bezier(0.23, 1, 0.32, 1)',
+  };
+
+  const liquidGlassStyle = {
+    backdropFilter: 'blur(45px) saturate(200%)',
+    background: 'conic-gradient(from 180deg at 50% 50%, rgba(255,255,255,0.15) 0deg, rgba(255,255,255,0.05) 120deg, rgba(255,255,255,0.08) 240deg, rgba(255,255,255,0.15) 360deg)',
+    border: '1px solid rgba(255,255,255,0.2)',
+    boxShadow: '0 15px 45px rgba(0,0,0,0.4), inset 0 2px 0 rgba(255,255,255,0.25)',
+    borderRadius: '50%', // Perfect circles for financial bubbles
+    transition: 'all 0.6s cubic-bezier(0.23, 1, 0.32, 1)',
+    transform: 'translateZ(0)',
+  };
+
+  const deepGlassStyle = {
+    backdropFilter: 'blur(60px) saturate(250%)',
+    background: `
+      radial-gradient(circle at 20% 30%, rgba(255,255,255,0.2) 0%, transparent 50%),
+      radial-gradient(circle at 80% 70%, rgba(255,255,255,0.15) 0%, transparent 50%),
+      linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.02) 100%)
+    `,
+    border: '1px solid rgba(255,255,255,0.3)',
+    boxShadow: `
+      0 25px 70px rgba(0,0,0,0.6),
+      inset 0 4px 0 rgba(255,255,255,0.4),
+      inset 0 0 20px rgba(255,255,255,0.1),
+      0 0 0 1px rgba(255,255,255,0.15)
+    `,
+    borderRadius: '32px 26px 38px 30px',
+    position: 'relative' as const,
+  };
+
+  const organicLayoutStyle = {
+    backdropFilter: 'blur(35px) saturate(180%)',
+    background: 'radial-gradient(ellipse 80% 60% at 30% 70%, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.02) 100%)',
+    border: '1px solid rgba(255,255,255,0.15)',
+    boxShadow: '0 15px 50px rgba(0,0,0,0.4), inset 0 2px 0 rgba(255,255,255,0.2)',
+    borderRadius: '45px 20px 30px 55px', // Highly asymmetric
+    transform: 'rotate(-1deg)',
+    transition: 'all 0.8s cubic-bezier(0.23, 1, 0.32, 1)',
+  };
+
+  const shimmerGlassStyle = {
+    backdropFilter: 'blur(25px) saturate(160%)',
+    background: 'linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 50%, rgba(255,255,255,0.06) 100%)',
+    border: '1px solid rgba(255,255,255,0.2)',
+    boxShadow: '0 8px 25px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.4)',
+    borderRadius: '20px 35px 15px 40px',
+    animation: 'shimmer 4s ease-in-out infinite',
+  };
+
+  const floatingGlassStyle = {
+    backdropFilter: 'blur(35px) saturate(180%)',
+    background: 'linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.02) 100%)',
+    border: '1px solid rgba(255,255,255,0.18)',
+    boxShadow: '0 10px 35px rgba(0,0,0,0.3), inset 0 2px 0 rgba(255,255,255,0.2)',
+    borderRadius: '24px 20px 26px 22px',
+    transition: 'all 0.5s cubic-bezier(0.23, 1, 0.32, 1)',
+    transform: 'translateZ(0)',
+  };
+
+  const accentGlassStyle = (color: string, intensity: 'light' | 'medium' | 'strong' = 'medium') => {
+    const intensities = {
+      light: { bg: '0.04', border: '0.15', shadow: '0.15' },
+      medium: { bg: '0.08', border: '0.25', shadow: '0.25' },
+      strong: { bg: '0.12', border: '0.35', shadow: '0.35' }
+    };
+    const level = intensities[intensity];
+    
+    return {
+      backdropFilter: 'blur(28px) saturate(180%)',
+      background: `linear-gradient(135deg, ${color.replace('rgba(', '').replace(')', '')}, ${level.bg}) 0%, ${color.replace('rgba(', '').replace(')', '')}, 0.02) 100%)`,
+      border: `1px solid rgba(${color.replace('rgba(', '').replace(')', '')}, ${level.border})`,
+      boxShadow: `0 8px 32px rgba(0,0,0,${level.shadow}), inset 0 1px 0 rgba(255,255,255,0.1)`,
+      borderRadius: '18px',
+      transition: 'all 0.3s ease',
+    };
+  };
+
+  const iconGlassStyle = {
+    backdropFilter: 'blur(16px) saturate(140%)',
+    background: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
+    border: '1px solid rgba(255,255,255,0.2)',
+    boxShadow: '0 4px 16px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.3)',
+    borderRadius: '12px',
+  };
 
   return (
-    <div className='w-full space-y-3'>
-      {/* Enhanced Sandwich Detection Alert */}
+    <>
+      <style jsx>{`
+        @keyframes float {
+          0%, 100% { transform: translateY(0px) rotate(0deg); }
+          25% { transform: translateY(-8px) rotate(1deg); }
+          50% { transform: translateY(-12px) rotate(0deg); }
+          75% { transform: translateY(-6px) rotate(-1deg); }
+        }
+        @keyframes glow {
+          0% { box-shadow: 0 20px 60px rgba(16, 185, 129, 0.15), inset 0 2px 0 rgba(255,255,255,0.25); }
+          100% { box-shadow: 0 25px 80px rgba(16, 185, 129, 0.3), inset 0 3px 0 rgba(255,255,255,0.4); }
+        }
+        @keyframes shimmer {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
+        }
+        @keyframes organic-pulse {
+          0%, 100% { transform: rotate(-1deg) scale(1); }
+          50% { transform: rotate(1deg) scale(1.02); }
+        }
+      `}</style>
+      <div className='w-full space-y-3'>
+      {/* Premium Sandwich Detection Alert */}
       {sandwichDetection.isSandwich && (
         <div
-          className='p-3 rounded-lg border'
+          className='relative overflow-hidden group hover:scale-102 transition-all duration-500'
           style={{
-            ...accentGlassStyle(
-              sandwichDetection.type === 'victim'
-                ? 'rgba(239, 68, 68'
-                : sandwichDetection.type === 'front-run'
-                ? 'rgba(245, 158, 11'
-                : sandwichDetection.type === 'back-run'
-                ? 'rgba(168, 85, 247'
-                : 'rgba(245, 158, 11'
-            ),
-            borderColor:
-              sandwichDetection.confidence === 'high'
-                ? sandwichDetection.type === 'victim'
-                  ? 'rgba(239, 68, 68, 0.6)'
-                  : sandwichDetection.type === 'front-run'
-                  ? 'rgba(245, 158, 11, 0.6)'
-                  : sandwichDetection.type === 'back-run'
-                  ? 'rgba(168, 85, 247, 0.6)'
-                  : 'rgba(245, 158, 11, 0.6)'
-                : sandwichDetection.confidence === 'medium'
-                ? sandwichDetection.type === 'victim'
-                  ? 'rgba(239, 68, 68, 0.4)'
-                  : sandwichDetection.type === 'front-run'
-                  ? 'rgba(245, 158, 11, 0.4)'
-                  : sandwichDetection.type === 'back-run'
-                  ? 'rgba(168, 85, 247, 0.4)'
-                  : 'rgba(245, 158, 11, 0.4)'
-                : sandwichDetection.type === 'victim'
-                ? 'rgba(239, 68, 68, 0.2)'
-                : sandwichDetection.type === 'front-run'
-                ? 'rgba(245, 158, 11, 0.2)'
-                : sandwichDetection.type === 'back-run'
-                ? 'rgba(168, 85, 247, 0.2)'
-                : 'rgba(245, 158, 11, 0.2)',
+            ...ultraGlassStyle,
+            padding: '20px',
+            background: sandwichDetection.type === 'victim'
+              ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(239, 68, 68, 0.03) 100%)'
+              : sandwichDetection.type === 'front-run'
+              ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(245, 158, 11, 0.03) 100%)'
+              : sandwichDetection.type === 'back-run'
+              ? 'linear-gradient(135deg, rgba(168, 85, 247, 0.12) 0%, rgba(168, 85, 247, 0.03) 100%)'
+              : 'linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(245, 158, 11, 0.03) 100%)',
           }}
         >
-          <div className='flex items-start justify-between mb-2'>
-            <div className='flex items-start space-x-2'>
-              <Shield
-                className={`w-5 h-5 ${
-                  sandwichDetection.type === 'victim'
-                    ? 'text-red-400'
+          <div className='flex items-center justify-between'>
+            <div className='flex items-center space-x-4'>
+              <div 
+                className='p-3 rounded-full'
+                style={{
+                  ...iconGlassStyle,
+                  background: sandwichDetection.type === 'victim'
+                    ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(239, 68, 68, 0.1) 100%)'
                     : sandwichDetection.type === 'front-run'
-                    ? 'text-amber-400'
+                    ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.2) 0%, rgba(245, 158, 11, 0.1) 100%)'
                     : sandwichDetection.type === 'back-run'
-                    ? 'text-purple-400'
-                    : 'text-amber-400'
-                }`}
-              />
+                    ? 'linear-gradient(135deg, rgba(168, 85, 247, 0.2) 0%, rgba(168, 85, 247, 0.1) 100%)'
+                    : 'linear-gradient(135deg, rgba(245, 158, 11, 0.2) 0%, rgba(245, 158, 11, 0.1) 100%)',
+                }}
+              >
+                <span className='text-2xl'>
+                  {sandwichDetection.type === 'victim' ? '🎯' : 
+                   sandwichDetection.type === 'front-run' ? '⚡' : 
+                   sandwichDetection.type === 'back-run' ? '🔄' : '🚨'}
+                </span>
+              </div>
               <div>
-                <div className='flex items-center space-x-1 mb-1'>
-                  <h4
-                    className={`font-bold text-base ${
-                      sandwichDetection.type === 'victim'
-                        ? 'text-red-400'
-                        : sandwichDetection.type === 'front-run'
-                        ? 'text-amber-400'
-                        : sandwichDetection.type === 'back-run'
-                        ? 'text-purple-400'
-                        : 'text-amber-400'
-                    }`}
-                  >
-                    {sandwichDetection.type === 'victim'
-                      ? '🎯 Sandwich Attack Victim'
+                <h4
+                  className={`font-bold text-lg ${
+                    sandwichDetection.type === 'victim'
+                      ? 'text-red-400'
                       : sandwichDetection.type === 'front-run'
-                      ? '⚡ Front-Run Transaction'
+                      ? 'text-amber-400'
                       : sandwichDetection.type === 'back-run'
-                      ? '🔄 Back-Run Transaction'
-                      : '🚨 Sandwich Attack Detected'}
-                  </h4>
-                </div>
-                <p className='text-gray-200 text-xs leading-relaxed mb-2'>{sandwichDetection.details}</p>
-
-                {/* Enhanced sandwich data display */}
-                {sandwichDetection.sandwichData && (
-                  <div className='space-y-1'>
-                    {sandwichDetection.sandwichData.detectionMethod && (
-                      <div className='flex items-center space-x-2'>
-                        <Search className='w-4 h-4 text-cyan-400' />
-                        <span className='text-cyan-400 text-xs font-medium'>
-                          Detection Method: {sandwichDetection.sandwichData.detectionMethod}
-                        </span>
-                      </div>
-                    )}
-
-                    {sandwichDetection.sandwichData.blockPosition !== undefined && (
-                      <div className='flex items-center space-x-2'>
-                        <Layers className='w-4 h-4 text-blue-400' />
-                        <span className='text-blue-400 text-xs font-medium'>
-                          Block Position: #{sandwichDetection.sandwichData.blockPosition}
-                        </span>
-                      </div>
-                    )}
-
-                    {(sandwichDetection.sandwichData.frontRunTx ||
-                      sandwichDetection.sandwichData.victimTx ||
-                      sandwichDetection.sandwichData.backRunTx) && (
-                      <div
-                        className='mt-2 p-2 rounded-md'
-                        style={{
-                          background: 'rgba(0, 0, 0, 0.3)',
-                          border: '1px solid rgba(255, 255, 255, 0.1)',
-                        }}
-                      >
-                        <h5 className='text-gray-300 text-xs font-medium mb-1'>Related Transactions:</h5>
-                        <div className='space-y-0.5'>
-                          {sandwichDetection.sandwichData.frontRunTx && (
-                            <div className='flex items-center space-x-2'>
-                              <div className='w-2 h-2 bg-amber-400 rounded-full'></div>
-                              <span className='text-amber-400 text-xs font-mono'>
-                                Front-run: {sandwichDetection.sandwichData.frontRunTx.slice(0, 10)}...
-                              </span>
-                            </div>
-                          )}
-                          {sandwichDetection.sandwichData.victimTx && (
-                            <div className='flex items-center space-x-2'>
-                              <div className='w-2 h-2 bg-red-400 rounded-full'></div>
-                              <span className='text-red-400 text-xs font-mono'>
-                                Victim: {sandwichDetection.sandwichData.victimTx.slice(0, 10)}...
-                              </span>
-                            </div>
-                          )}
-                          {sandwichDetection.sandwichData.backRunTx && (
-                            <div className='flex items-center space-x-2'>
-                              <div className='w-2 h-2 bg-purple-400 rounded-full'></div>
-                              <span className='text-purple-400 text-xs font-mono'>
-                                Back-run: {sandwichDetection.sandwichData.backRunTx.slice(0, 10)}...
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
+                      ? 'text-purple-400'
+                      : 'text-amber-400'
+                  }`}
+                >
+                  {sandwichDetection.type === 'victim'
+                    ? 'Sandwich Victim'
+                    : sandwichDetection.type === 'front-run'
+                    ? 'Front-Run Attack'
+                    : sandwichDetection.type === 'back-run'
+                    ? 'Back-Run Attack'
+                    : 'Sandwich Attack'}
+                </h4>
+                <p className='text-gray-300 text-sm mt-1'>{sandwichDetection.details}</p>
               </div>
             </div>
+            
             <div
-              className={`px-2 py-1 rounded-md text-xs font-bold ${
+              className={`px-4 py-2 rounded-full text-xs font-bold ${
                 sandwichDetection.confidence === 'high'
                   ? 'bg-red-500/20 text-red-300 border border-red-500/30'
                   : sandwichDetection.confidence === 'medium'
                   ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30'
                   : 'bg-gray-500/20 text-gray-300 border border-gray-500/30'
               }`}
+              style={iconGlassStyle}
             >
               {sandwichDetection.confidence.toUpperCase()}
             </div>
           </div>
+
+          
+          {/* Minimal sandwich data display */}
+          {sandwichDetection.sandwichData && (
+            <div className='mt-4 flex flex-wrap gap-2'>
+              {sandwichDetection.sandwichData.detectionMethod && (
+                <div 
+                  className='flex items-center space-x-2 px-3 py-1 rounded-full'
+                  style={floatingGlassStyle}
+                >
+                  <Search className='w-3 h-3 text-cyan-400' />
+                  <span className='text-cyan-400 text-xs font-medium'>
+                    {sandwichDetection.sandwichData.detectionMethod}
+                  </span>
+                </div>
+              )}
+
+              {sandwichDetection.sandwichData.blockPosition !== undefined && (
+                <div 
+                  className='flex items-center space-x-2 px-3 py-1 rounded-full'
+                  style={floatingGlassStyle}
+                >
+                  <Layers className='w-3 h-3 text-blue-400' />
+                  <span className='text-blue-400 text-xs font-medium'>
+                    #{sandwichDetection.sandwichData.blockPosition}
+                  </span>
+                </div>
+              )}
+
+              {(sandwichDetection.sandwichData.frontRunTx ||
+                sandwichDetection.sandwichData.victimTx ||
+                sandwichDetection.sandwichData.backRunTx) && (
+                <div className='flex space-x-1'>
+                  {sandwichDetection.sandwichData.frontRunTx && (
+                    <div 
+                      className='px-2 py-1 rounded-full'
+                      style={{
+                        ...floatingGlassStyle,
+                        background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(245, 158, 11, 0.05) 100%)',
+                      }}
+                    >
+                      <span className='text-amber-400 text-xs font-mono'>
+                        ⚡ {sandwichDetection.sandwichData.frontRunTx.slice(0, 6)}...
+                      </span>
+                    </div>
+                  )}
+                  {sandwichDetection.sandwichData.victimTx && (
+                    <div 
+                      className='px-2 py-1 rounded-full'
+                      style={{
+                        ...floatingGlassStyle,
+                        background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(239, 68, 68, 0.05) 100%)',
+                      }}
+                    >
+                      <span className='text-red-400 text-xs font-mono'>
+                        🎯 {sandwichDetection.sandwichData.victimTx.slice(0, 6)}...
+                      </span>
+                    </div>
+                  )}
+                  {sandwichDetection.sandwichData.backRunTx && (
+                    <div 
+                      className='px-2 py-1 rounded-full'
+                      style={{
+                        ...floatingGlassStyle,
+                        background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.15) 0%, rgba(168, 85, 247, 0.05) 100%)',
+                      }}
+                    >
+                      <span className='text-purple-400 text-xs font-mono'>
+                        🔄 {sandwichDetection.sandwichData.backRunTx.slice(0, 6)}...
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
-      {/* Tokens Involved */}
+      {/* Token Pills - Organic Asymmetric Layout */}
       {extractedTokens.length > 0 && (
-        <div className='space-y-2'>
-          <h3 className='text-blue-400 font-medium text-sm flex items-center'>
-            <Coins className='w-4 h-4 mr-1' />
-            Tokens Involved
-          </h3>
-          <div className='flex flex-wrap gap-1'>
+        <div 
+          className='relative overflow-hidden hover:scale-102'
+          style={{
+            ...organicLayoutStyle,
+            padding: '16px 20px',
+            animation: 'organic-pulse 8s ease-in-out infinite',
+          }}
+        >
+          <div className='flex flex-wrap gap-2'>
             {extractedTokens.map((token, index) => {
-              const getTokenColor = (type: string) => {
+              const getTokenStyle = (type: string) => {
                 switch (type) {
                   case 'input':
-                    return { bg: 'rgba(239, 68, 68, 0.12)', border: 'rgba(239, 68, 68, 0.3)', text: 'text-red-300' };
+                    return {
+                      background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(239, 68, 68, 0.05) 100%)',
+                      border: '1px solid rgba(239, 68, 68, 0.25)',
+                      text: 'text-red-300',
+                      icon: '📤'
+                    };
                   case 'output':
-                    return { bg: 'rgba(34, 197, 94, 0.12)', border: 'rgba(34, 197, 94, 0.3)', text: 'text-green-300' };
+                    return {
+                      background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(34, 197, 94, 0.05) 100%)',
+                      border: '1px solid rgba(34, 197, 94, 0.25)', 
+                      text: 'text-green-300',
+                      icon: '📥'
+                    };
                   case 'fee':
                     return {
-                      bg: 'rgba(251, 146, 60, 0.12)',
-                      border: 'rgba(251, 146, 60, 0.3)',
+                      background: 'linear-gradient(135deg, rgba(251, 146, 60, 0.15) 0%, rgba(251, 146, 60, 0.05) 100%)',
+                      border: '1px solid rgba(251, 146, 60, 0.25)',
                       text: 'text-orange-300',
+                      icon: '⛽'
                     };
                   default:
-                    return { bg: 'rgba(59, 130, 246, 0.12)', border: 'rgba(59, 130, 246, 0.3)', text: 'text-blue-300' };
+                    return {
+                      background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.05) 100%)',
+                      border: '1px solid rgba(59, 130, 246, 0.25)',
+                      text: 'text-blue-300',
+                      icon: '🪙'
+                    };
                 }
               };
 
-              const colors = getTokenColor(token.type);
+              const tokenStyle = getTokenStyle(token.type);
 
               return (
                 <div
                   key={`${token.symbol}-${index}`}
-                  className={`px-2 py-1 rounded-lg text-xs font-semibold flex items-center space-x-1 ${colors.text}`}
+                  className={`group flex items-center space-x-2 px-4 py-2 rounded-full text-xs font-semibold hover:scale-105 transition-all duration-300 ${tokenStyle.text}`}
                   style={{
-                    background: colors.bg,
-                    border: `1px solid ${colors.border}`,
-                    backdropFilter: 'blur(16px)',
+                    ...floatingGlassStyle,
+                    ...tokenStyle,
+                    borderRadius: '24px',
+                    minHeight: '36px',
                   }}
                 >
-                  <span className='font-mono'>{token.symbol}</span>
-                  {token.amount && <span className='text-xs opacity-75'>{formatTokenAmount(token.amount)}</span>}
-                  {token.type !== 'unknown' && <span className='text-xs opacity-60 capitalize'>{token.type}</span>}
+                  <span className='text-sm'>{tokenStyle.icon}</span>
+                  <span className='font-mono font-bold'>{token.symbol}</span>
+                  {token.amount && (
+                    <span className='text-xs opacity-80 font-medium'>
+                      {formatTokenAmount(token.amount)}
+                    </span>
+                  )}
                 </div>
               );
             })}
@@ -820,21 +1000,17 @@ const ResultCard = ({ result }: { result: TransactionAnalysisResult }) => {
       <div className='space-y-2'>
         <StrategyBadge strategy={result.strategy} confidence={result.confidence} />
 
-        <div className='p-3 rounded-lg' style={glassStyle}>
+        <div className='p-3' style={premiumGlassStyle}>
           <p className='text-white text-sm leading-relaxed'>{result.summary}</p>
         </div>
       </div>
 
-      {/* Transaction Flow */}
+      {/* Flow Steps - Ultra-Minimal */}
       {result.narrative && result.narrative.length > 0 && (
-        <div className='p-4 rounded-lg' style={accentGlassStyle('rgba(6, 182, 212')}>
-          <h3 className='text-cyan-400 font-semibold mb-3 flex items-center text-base'>
-            <RefreshCw className='w-4 h-4 mr-2' />
-            Transaction Flow
-          </h3>
+        <div className='space-y-3'>
           <div className='space-y-2'>
-            {result.narrative.map((step, index) => {
-              // Enhanced step formatting
+            {result.narrative.slice(0, 3).map((step, index) => {
+              // Enhanced step formatting and shortening
               let enhancedStep = step;
               if (step.includes('COMMS') && step.includes('525,363')) {
                 enhancedStep = step.replace(/525,363\.[\d]+/, '525,363');
@@ -845,166 +1021,210 @@ const ResultCard = ({ result }: { result: TransactionAnalysisResult }) => {
               if (step.includes('gas') && step.includes('0.000058860859719038')) {
                 enhancedStep = enhancedStep.replace(/0\.000058860859719038/, '0.0000589');
               }
+              
+              // Shorten long descriptions
+              if (enhancedStep.length > 80) {
+                enhancedStep = enhancedStep.substring(0, 77) + '...';
+              }
 
               return (
                 <div
                   key={index}
-                  className='flex items-start space-x-2 p-3 rounded-lg'
+                  className='group flex items-center space-x-3 p-3 hover:scale-102 transition-all duration-300'
                   style={{
-                    background: 'rgba(6, 182, 212, 0.08)',
-                    border: '1px solid rgba(6, 182, 212, 0.2)',
-                    backdropFilter: 'blur(16px)',
+                    ...floatingGlassStyle,
+                    background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.08) 0%, rgba(6, 182, 212, 0.02) 100%)',
                   }}
                 >
                   <div
-                    className='w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0'
+                    className='w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0'
                     style={{
-                      background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.3) 0%, rgba(14, 165, 233, 0.5) 100%)',
-                      border: '1px solid rgba(6, 182, 212, 0.4)',
-                      backdropFilter: 'blur(8px)',
+                      ...iconGlassStyle,
+                      background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.2) 0%, rgba(14, 165, 233, 0.3) 100%)',
                     }}
                   >
-                    <span className='text-cyan-300 text-xs font-bold'>{index + 1}</span>
+                    <span className='text-cyan-300 text-sm font-bold'>{index + 1}</span>
                   </div>
-                  <p className='text-gray-200 text-xs leading-relaxed font-medium'>{enhancedStep}</p>
+                  <p className='text-gray-200 text-sm leading-relaxed font-medium flex-1'>{enhancedStep}</p>
                 </div>
               );
             })}
+            {result.narrative.length > 3 && (
+              <div 
+                className='text-center py-2'
+                style={floatingGlassStyle}
+              >
+                <span className='text-cyan-400/60 text-xs'>+{result.narrative.length - 3} more steps</span>
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {/* Financial Analysis */}
+      {/* Financial Bubbles - Ultra-Clean Circular Glass Design */}
       {result.financials && (
-        <div className='p-4 rounded-lg' style={accentGlassStyle('rgba(34, 197, 94')}>
-          <h3 className='text-green-400 font-semibold mb-3 flex items-center text-base'>
-            <DollarSign className='w-4 h-4 mr-2' />
-            Financial Analysis
-          </h3>
-          <div className='grid grid-cols-2 gap-3'>
+        <div 
+          className='relative overflow-hidden'
+          style={{
+            padding: '20px',
+            borderRadius: '30px',
+            ...premiumGlassStyle,
+            background: 'radial-gradient(circle at 50% 50%, rgba(16, 185, 129, 0.06) 0%, rgba(16, 185, 129, 0.01) 100%)',
+          }}
+        >
+          {/* Floating Financial Bubbles */}
+          <div className='grid grid-cols-3 gap-4 place-items-center'>
             {result.financials.profit && (
-              <div
-                className='space-y-2 p-3 rounded-lg'
+              <div 
+                className='group relative'
                 style={{
-                  background: 'rgba(34, 197, 94, 0.12)',
+                  ...liquidGlassStyle,
+                  width: '90px',
+                  height: '90px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'conic-gradient(from 180deg at 50% 50%, rgba(34, 197, 94, 0.2) 0deg, rgba(34, 197, 94, 0.08) 120deg, rgba(34, 197, 94, 0.12) 240deg, rgba(34, 197, 94, 0.2) 360deg)',
                   border: '1px solid rgba(34, 197, 94, 0.3)',
-                  backdropFilter: 'blur(20px)',
+                  animation: 'float 4s ease-in-out infinite',
+                  animationDelay: '0s',
                 }}
               >
-                <div className='flex items-center space-x-1'>
-                  <Coins className='w-3 h-3 text-green-300' />
-                  <span className='text-green-300 text-xs font-medium'>Profit</span>
+                <div className='text-center'>
+                  <div className='text-2xl mb-1'>💰</div>
+                  <div className='text-green-400 font-bold text-xs leading-none'>
+                    {result.financials.profit.includes('WETH')
+                      ? formatTokenAmount(result.financials.profit.split(' ')[0])
+                      : result.financials.profit.split(' ')[0]}
+                  </div>
                 </div>
-                <p className='text-green-400 font-bold text-sm'>
-                  {result.financials.profit.includes('WETH')
-                    ? `${formatTokenAmount(result.financials.profit.split(' ')[0])} WETH`
-                    : result.financials.profit}
-                </p>
               </div>
             )}
+            
             {result.financials.cost && (
-              <div
-                className='space-y-2 p-3 rounded-lg'
+              <div 
+                className='group relative'
                 style={{
-                  background: 'rgba(251, 146, 60, 0.12)',
-                  border: '1px solid rgba(251, 146, 60, 0.3)',
-                  backdropFilter: 'blur(20px)',
+                  ...liquidGlassStyle,
+                  width: '80px',
+                  height: '80px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'conic-gradient(from 180deg at 50% 50%, rgba(251, 146, 60, 0.18) 0deg, rgba(251, 146, 60, 0.06) 120deg, rgba(251, 146, 60, 0.1) 240deg, rgba(251, 146, 60, 0.18) 360deg)',
+                  border: '1px solid rgba(251, 146, 60, 0.25)',
+                  animation: 'float 5s ease-in-out infinite',
+                  animationDelay: '1s',
                 }}
               >
-                <div className='flex items-center space-x-1'>
-                  <Fuel className='w-3 h-3 text-orange-300' />
-                  <span className='text-orange-300 text-xs font-medium'>Gas Cost</span>
+                <div className='text-center'>
+                  <div className='text-xl mb-1'>⛽</div>
+                  <div className='text-orange-400 font-bold text-xs leading-none'>
+                    {formatCurrency(result.financials.cost.split(' ')[0])}
+                  </div>
                 </div>
-                <p className='text-orange-400 font-bold text-sm'>
-                  {result.financials.cost.includes('ETH')
-                    ? `${formatCurrency(result.financials.cost.split(' ')[0])} ETH`
-                    : result.financials.cost}
-                </p>
               </div>
             )}
-            {result.financials.netProfit && (
-              <div
-                className='space-y-2 p-3 rounded-lg col-span-2'
-                style={{
-                  background: 'rgba(16, 185, 129, 0.12)',
-                  border: '1px solid rgba(16, 185, 129, 0.3)',
-                  backdropFilter: 'blur(20px)',
-                }}
-              >
-                <div className='flex items-center space-x-1'>
-                  <Target className='w-3 h-3 text-emerald-300' />
-                  <span className='text-emerald-300 text-xs font-medium'>Net Profit</span>
-                </div>
-                <p className='text-emerald-400 font-bold text-base'>
-                  {result.financials.netProfit.includes('ETH')
-                    ? `${formatTokenAmount(result.financials.netProfit.split(' ')[0])} ETH equivalent`
-                    : result.financials.netProfit}
-                </p>
-              </div>
-            )}
+
             {result.financials.roi && (
-              <div
-                className='space-y-2 p-3 rounded-lg'
+              <div 
+                className='group relative'
                 style={{
-                  background: 'rgba(6, 182, 212, 0.12)',
-                  border: '1px solid rgba(6, 182, 212, 0.3)',
-                  backdropFilter: 'blur(20px)',
+                  ...liquidGlassStyle,
+                  width: '75px',
+                  height: '75px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'conic-gradient(from 180deg at 50% 50%, rgba(6, 182, 212, 0.16) 0deg, rgba(6, 182, 212, 0.05) 120deg, rgba(6, 182, 212, 0.09) 240deg, rgba(6, 182, 212, 0.16) 360deg)',
+                  border: '1px solid rgba(6, 182, 212, 0.25)',
+                  animation: 'float 6s ease-in-out infinite',
+                  animationDelay: '2s',
                 }}
               >
-                <div className='flex items-center space-x-1'>
-                  <TrendingUp className='w-3 h-3 text-cyan-300' />
-                  <span className='text-cyan-300 text-xs font-medium'>ROI</span>
+                <div className='text-center'>
+                  <div className='text-lg mb-1'>📊</div>
+                  <div className='text-cyan-400 font-bold text-xs leading-none'>{result.financials.roi}</div>
                 </div>
-                <p className='text-cyan-400 font-bold text-sm'>{result.financials.roi}</p>
-              </div>
-            )}
-            {result.strategy.toLowerCase().includes('arbitrage') && (
-              <div
-                className='space-y-2 p-3 rounded-lg'
-                style={{
-                  background: 'rgba(59, 130, 246, 0.12)',
-                  border: '1px solid rgba(59, 130, 246, 0.3)',
-                  backdropFilter: 'blur(20px)',
-                }}
-              >
-                <div className='flex items-center space-x-1'>
-                  <ArrowUpDown className='w-3 h-3 text-blue-300' />
-                  <span className='text-blue-300 text-xs font-medium'>Market Impact</span>
-                </div>
-                <p className='text-blue-400 font-medium'>Pure Efficiency Capture</p>
               </div>
             )}
           </div>
+
+          {/* Central Net Profit Bubble */}
+          {result.financials.netProfit && (
+            <div className='flex justify-center mt-6'>
+              <div 
+                className='group relative'
+                style={{
+                  ...liquidGlassStyle,
+                  width: '120px',
+                  height: '120px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'conic-gradient(from 180deg at 50% 50%, rgba(16, 185, 129, 0.25) 0deg, rgba(16, 185, 129, 0.1) 120deg, rgba(16, 185, 129, 0.15) 240deg, rgba(16, 185, 129, 0.25) 360deg)',
+                  border: '2px solid rgba(16, 185, 129, 0.4)',
+                  animation: 'float 7s ease-in-out infinite, glow 3s ease-in-out infinite alternate',
+                  animationDelay: '0.5s',
+                  boxShadow: '0 20px 60px rgba(16, 185, 129, 0.2), inset 0 2px 0 rgba(255,255,255,0.3)',
+                }}
+              >
+                <div className='text-center'>
+                  <div className='text-3xl mb-2'>🎯</div>
+                  <div className='text-emerald-400 font-bold text-sm leading-none'>
+                    {result.financials.netProfit.includes('ETH')
+                      ? formatTokenAmount(result.financials.netProfit.split(' ')[0])
+                      : result.financials.netProfit.split(' ')[0]}
+                  </div>
+                  <div className='text-emerald-300/50 text-xs mt-1'>NET</div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Protocols */}
+      {/* Protocol Pills - Deep Glass with Shimmer */}
       {updatedProtocols && updatedProtocols.length > 0 && (
-        <div className='space-y-2'>
-          <h3 className='text-purple-400 font-medium text-sm flex items-center'>
-            <Link className='w-4 h-4 mr-1' />
-            Protocols Involved
-          </h3>
+        <div 
+          className='relative overflow-hidden hover:scale-102'
+          style={{
+            ...deepGlassStyle,
+            padding: '18px 22px',
+          }}
+        >
           <div className='flex flex-wrap gap-2'>
             {updatedProtocols.map((protocol, index) => {
               const isUniswap = protocol.toLowerCase().includes('uniswap');
+              const isWETH = protocol.toLowerCase().includes('weth');
+              const protocolIcon = isUniswap ? '🦄' : isWETH ? '💎' : '🔗';
+              
               return (
-                <span
+                <div
                   key={index}
-                  className={`px-3 py-2 rounded-lg text-xs font-semibold flex items-center space-x-1 ${
-                    isUniswap ? 'text-pink-300' : 'text-purple-300'
+                  className={`group flex items-center space-x-2 px-4 py-2 rounded-full text-xs font-semibold hover:scale-105 transition-all duration-300 ${
+                    isUniswap ? 'text-pink-300' : isWETH ? 'text-blue-300' : 'text-purple-300'
                   }`}
                   style={{
+                    ...shimmerGlassStyle,
                     background: isUniswap
-                      ? 'linear-gradient(135deg, rgba(236, 72, 153, 0.15) 0%, rgba(219, 39, 119, 0.1) 100%)'
-                      : 'rgba(147, 51, 234, 0.12)',
-                    border: `1px solid ${isUniswap ? 'rgba(236, 72, 153, 0.3)' : 'rgba(147, 51, 234, 0.3)'}`,
-                    backdropFilter: 'blur(16px)',
+                      ? 'linear-gradient(135deg, rgba(236, 72, 153, 0.15) 0%, rgba(236, 72, 153, 0.05) 50%, rgba(236, 72, 153, 0.12) 100%)'
+                      : isWETH
+                      ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.05) 50%, rgba(59, 130, 246, 0.12) 100%)'
+                      : 'linear-gradient(135deg, rgba(147, 51, 234, 0.15) 0%, rgba(147, 51, 234, 0.05) 50%, rgba(147, 51, 234, 0.12) 100%)',
+                    border: `1px solid ${
+                      isUniswap ? 'rgba(236, 72, 153, 0.3)' : 
+                      isWETH ? 'rgba(59, 130, 246, 0.3)' : 
+                      'rgba(147, 51, 234, 0.3)'
+                    }`,
+                    minHeight: '36px',
+                    backgroundSize: '200% 100%',
+                    animationDelay: `${index * 0.5}s`,
                   }}
                 >
-                  {isUniswap ? <Zap className='w-4 h-4' /> : <Activity className='w-4 h-4' />}
-                  <span>{protocol}</span>
-                </span>
+                  <span className='text-sm'>{protocolIcon}</span>
+                  <span className='font-medium'>{protocol}</span>
+                </div>
               );
             })}
           </div>
@@ -1141,6 +1361,7 @@ const ResultCard = ({ result }: { result: TransactionAnalysisResult }) => {
         </div>
       )}
     </div>
+    </>
   );
 };
 

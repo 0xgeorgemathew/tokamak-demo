@@ -51,6 +51,21 @@ h6 {
   animation: float 8s ease-in-out infinite;
 }
 
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.6s ease-out forwards;
+}
+
 /* THE DEFINITIVE MULTI-LAYERED, ILLUMINATED FRAME */
 .structural-illuminated-frame {
   position: relative;

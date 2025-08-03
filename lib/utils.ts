@@ -27,7 +27,7 @@ export function formatTransactionHash(
   length: number = 8
 ): string {
   if (!isValidTransactionHash(hash)) return hash;
-  return `${hash.slice(0, length)}...${hash.slice(-length)}`;
+  return `${hash.slice(0, length + 2)}...${hash.slice(-length)}`;
 }
 
 export function formatNumber(num: number, decimals: number = 4): string {
@@ -110,4 +110,18 @@ export function hexToDecimal(hex: string): number {
 
 export function decimalToHex(decimal: number): string {
   return "0x" + decimal.toString(16);
+}
+
+export function formatTokenAmount(rawAmount: bigint, decimals: number, symbol: string): string {
+  const factor = 10n ** BigInt(decimals);
+  const whole = rawAmount / factor;
+  const fraction = rawAmount % factor;
+
+  if (fraction === 0n) {
+    return `${whole.toLocaleString()} ${symbol}`;
+  }
+
+  // Pad fraction with leading zeros and format
+  const fractionString = fraction.toString().padStart(decimals, '0').replace(/0+$/, '');
+  return `${whole.toLocaleString()}.${fractionString} ${symbol}`;
 }

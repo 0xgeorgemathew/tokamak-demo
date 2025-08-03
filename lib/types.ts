@@ -113,3 +113,91 @@ export interface Network {
   blockExplorer: string;
   color: string;
 }
+// --- Type Definitions ---
+export interface TokenInfo {
+  address: string;
+  symbol: string;
+  decimals: number;
+}
+
+export interface EnrichedAsset {
+  token: TokenInfo;
+  rawAmount: string;
+  formattedAmount: string;
+  isProfit?: boolean;
+}
+
+export interface TransactionMetadata {
+  txHash: string;
+  blockNumber: number;
+  blockTimestamp: number;
+  transactionIndex: number;
+  gasUsed: string;
+  gasPrice: string;
+  gasCostEth: string;
+  from: string;
+  to: string;
+  value: string;
+}
+
+export interface ProtocolInteraction {
+  address: string;
+  protocol: string;
+  confidence: 'high' | 'medium' | 'low';
+}
+
+export interface GasAnalysis {
+  totalGasUsed: number;
+  gasPrice: string;
+  gasCostEth: string;
+  gasCostUsd?: string;
+  gasEfficiency: 'high' | 'medium' | 'low';
+}
+
+export interface EnrichedFinancials {
+  netProfitOrLoss: EnrichedAsset[];
+  totalAssetsSent_Cost: EnrichedAsset[];
+  totalAssetsReceived_Revenue: EnrichedAsset[];
+}
+
+export interface SandwichTransaction {
+  hash: string;
+  type: 'front-run' | 'victim' | 'back-run';
+  blockNumber: number;
+  transactionIndex: number;
+  from: string;
+  analysis?: any;
+}
+
+export interface SandwichPattern {
+  frontRun: SandwichTransaction;
+  victim: SandwichTransaction;
+  backRun: SandwichTransaction;
+  confidence: 'high' | 'medium' | 'low';
+  priceImpact: PriceImpactAnalysis;
+  victimLoss: EnrichedAsset[];
+  attackerProfit: EnrichedAsset[];
+}
+
+export interface PriceImpactAnalysis {
+  tokenPair: {
+    tokenA: TokenInfo;
+    tokenB: TokenInfo;
+  };
+  preBandwichPrice: string;
+  postBandwichPrice: string;
+  maxPriceImpact: string;
+  victimSlippage: string;
+  poolManipulation: number; // percentage
+}
+
+export interface MEVBotProfile {
+  address: string;
+  confidence: 'high' | 'medium' | 'low';
+  patterns: {
+    avgGasPrice: string;
+    txFrequency: number;
+    successRate: number;
+    preferredProtocols: string[];
+  };
+}

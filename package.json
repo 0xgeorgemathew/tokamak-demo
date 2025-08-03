@@ -13,14 +13,19 @@
     "@react-three/drei": "^9.107.1",
     "@react-three/fiber": "^8.16.8",
     "@react-three/postprocessing": "^2.16.2",
+    "axios": "^1.11.0",
     "clsx": "^2.1.1",
+    "dotenv": "^17.2.1",
     "lucide-react": "^0.395.0",
     "next": "14.2.4",
+    "openai": "^5.11.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",
+    "recharts": "^3.1.0",
     "three": "^0.165.0"
   },
   "devDependencies": {
+    "@types/axios": "^0.9.36",
     "@types/node": "^20.14.2",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
@@ -30,6 +35,7 @@
     "eslint-config-next": "14.2.4",
     "postcss": "^8.4.38",
     "tailwindcss": "^3.4.4",
+    "ts-node": "^10.9.2",
     "typescript": "^5.4.5"
   }
 }

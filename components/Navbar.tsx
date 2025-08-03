@@ -1,6 +1,6 @@
 "use client";
 import React from "react";
-import { Orbit } from "lucide-react";
+import { Orbit, Sparkles } from "lucide-react";
 import { NetworkSelector } from "@/components/ui/NetworkSelector";
 import { Network } from "@/lib/types";
 
@@ -21,6 +21,16 @@ export function Navbar({ selectedNetwork, onNetworkChange }: NavbarProps) {
           <h1 className="text-5xl font-extrabold bg-gradient-to-r from-violet-400 to-white bg-clip-text text-transparent transition-all duration-300 group-hover:brightness-110">
             Tokamak
           </h1>
+        </div>
+
+        {/* Center: Demo Badge */}
+        <div className="absolute left-1/2 transform -translate-x-1/2">
+          <div className="px-4 py-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20">
+            <div className="flex items-center space-x-2 text-sm font-medium text-white">
+              <Sparkles className="w-4 h-4 text-cyan-300" />
+              <span>Unite Defi hackathon Demo</span>
+            </div>
+          </div>
         </div>
 
         {/* Extreme Right: Network Selector */}

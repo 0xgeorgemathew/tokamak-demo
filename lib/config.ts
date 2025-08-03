@@ -7,7 +7,7 @@ import OpenAI from 'openai';
 
 export const Config = {
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
-    LLM_MODEL: 'gpt-4.1-mini',
+    LLM_MODEL: 'gpt-4.1',
     API_BASE_URL: 'https://1inch-vercel-proxy-psi.vercel.app',
 };
 

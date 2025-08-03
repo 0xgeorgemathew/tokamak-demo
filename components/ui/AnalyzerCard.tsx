@@ -21,6 +21,11 @@ import {
   Activity,
   Clock,
   Layers,
+  DollarSign,
+  ArrowUpRight,
+  ArrowDownLeft,
+  Gem,
+  Link2,
 } from 'lucide-react';
 import { PortfolioChart } from './PortfolioChart';
 import { getHistoricalPortfolioValue } from '@/lib/api/1inch';
@@ -670,9 +675,8 @@ const ResultCard = ({ result }: { result: TransactionAnalysisResult }) => {
     background: 'conic-gradient(from 180deg at 50% 50%, rgba(255,255,255,0.15) 0deg, rgba(255,255,255,0.05) 120deg, rgba(255,255,255,0.08) 240deg, rgba(255,255,255,0.15) 360deg)',
     border: '1px solid rgba(255,255,255,0.2)',
     boxShadow: '0 15px 45px rgba(0,0,0,0.4), inset 0 2px 0 rgba(255,255,255,0.25)',
-    borderRadius: '50%', // Perfect circles for financial bubbles
+    borderRadius: '12px', // Professional square cards
     transition: 'all 0.6s cubic-bezier(0.23, 1, 0.32, 1)',
-    transform: 'translateZ(0)',
   };
 
   const deepGlassStyle = {
@@ -699,7 +703,6 @@ const ResultCard = ({ result }: { result: TransactionAnalysisResult }) => {
     border: '1px solid rgba(255,255,255,0.15)',
     boxShadow: '0 15px 50px rgba(0,0,0,0.4), inset 0 2px 0 rgba(255,255,255,0.2)',
     borderRadius: '45px 20px 30px 55px', // Highly asymmetric
-    transform: 'rotate(-1deg)',
     transition: 'all 0.8s cubic-bezier(0.23, 1, 0.32, 1)',
   };
 
@@ -709,7 +712,6 @@ const ResultCard = ({ result }: { result: TransactionAnalysisResult }) => {
     border: '1px solid rgba(255,255,255,0.2)',
     boxShadow: '0 8px 25px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.4)',
     borderRadius: '20px 35px 15px 40px',
-    animation: 'shimmer 4s ease-in-out infinite',
   };
 
   const floatingGlassStyle = {
@@ -751,24 +753,6 @@ const ResultCard = ({ result }: { result: TransactionAnalysisResult }) => {
   return (
     <>
       <style jsx>{`
-        @keyframes float {
-          0%, 100% { transform: translateY(0px) rotate(0deg); }
-          25% { transform: translateY(-8px) rotate(1deg); }
-          50% { transform: translateY(-12px) rotate(0deg); }
-          75% { transform: translateY(-6px) rotate(-1deg); }
-        }
-        @keyframes glow {
-          0% { box-shadow: 0 20px 60px rgba(16, 185, 129, 0.15), inset 0 2px 0 rgba(255,255,255,0.25); }
-          100% { box-shadow: 0 25px 80px rgba(16, 185, 129, 0.3), inset 0 3px 0 rgba(255,255,255,0.4); }
-        }
-        @keyframes shimmer {
-          0% { background-position: -200% 0; }
-          100% { background-position: 200% 0; }
-        }
-        @keyframes organic-pulse {
-          0%, 100% { transform: rotate(-1deg) scale(1); }
-          50% { transform: rotate(1deg) scale(1.02); }
-        }
       `}</style>
       <div className='w-full space-y-3'>
       {/* Premium Sandwich Detection Alert */}
@@ -802,11 +786,15 @@ const ResultCard = ({ result }: { result: TransactionAnalysisResult }) => {
                     : 'linear-gradient(135deg, rgba(245, 158, 11, 0.2) 0%, rgba(245, 158, 11, 0.1) 100%)',
                 }}
               >
-                <span className='text-2xl'>
-                  {sandwichDetection.type === 'victim' ? '🎯' : 
-                   sandwichDetection.type === 'front-run' ? '⚡' : 
-                   sandwichDetection.type === 'back-run' ? '🔄' : '🚨'}
-                </span>
+                {sandwichDetection.type === 'victim' ? (
+                  <Target className='w-6 h-6 text-red-400' />
+                ) : sandwichDetection.type === 'front-run' ? (
+                  <Zap className='w-6 h-6 text-amber-400' />
+                ) : sandwichDetection.type === 'back-run' ? (
+                  <RefreshCw className='w-6 h-6 text-purple-400' />
+                ) : (
+                  <AlertTriangle className='w-6 h-6 text-amber-400' />
+                )}
               </div>
               <div>
                 <h4
@@ -886,9 +874,12 @@ const ResultCard = ({ result }: { result: TransactionAnalysisResult }) => {
                         background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(245, 158, 11, 0.05) 100%)',
                       }}
                     >
-                      <span className='text-amber-400 text-xs font-mono'>
-                        ⚡ {sandwichDetection.sandwichData.frontRunTx.slice(0, 6)}...
-                      </span>
+                      <div className='flex items-center space-x-1'>
+                        <Zap className='w-3 h-3 text-amber-400' />
+                        <span className='text-amber-400 text-xs font-mono'>
+                          {sandwichDetection.sandwichData.frontRunTx.slice(0, 6)}...
+                        </span>
+                      </div>
                     </div>
                   )}
                   {sandwichDetection.sandwichData.victimTx && (
@@ -899,9 +890,12 @@ const ResultCard = ({ result }: { result: TransactionAnalysisResult }) => {
                         background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(239, 68, 68, 0.05) 100%)',
                       }}
                     >
-                      <span className='text-red-400 text-xs font-mono'>
-                        🎯 {sandwichDetection.sandwichData.victimTx.slice(0, 6)}...
-                      </span>
+                      <div className='flex items-center space-x-1'>
+                        <Target className='w-3 h-3 text-red-400' />
+                        <span className='text-red-400 text-xs font-mono'>
+                          {sandwichDetection.sandwichData.victimTx.slice(0, 6)}...
+                        </span>
+                      </div>
                     </div>
                   )}
                   {sandwichDetection.sandwichData.backRunTx && (
@@ -912,9 +906,12 @@ const ResultCard = ({ result }: { result: TransactionAnalysisResult }) => {
                         background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.15) 0%, rgba(168, 85, 247, 0.05) 100%)',
                       }}
                     >
-                      <span className='text-purple-400 text-xs font-mono'>
-                        🔄 {sandwichDetection.sandwichData.backRunTx.slice(0, 6)}...
-                      </span>
+                      <div className='flex items-center space-x-1'>
+                        <RefreshCw className='w-3 h-3 text-purple-400' />
+                        <span className='text-purple-400 text-xs font-mono'>
+                          {sandwichDetection.sandwichData.backRunTx.slice(0, 6)}...
+                        </span>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -931,7 +928,6 @@ const ResultCard = ({ result }: { result: TransactionAnalysisResult }) => {
           style={{
             ...organicLayoutStyle,
             padding: '16px 20px',
-            animation: 'organic-pulse 8s ease-in-out infinite',
           }}
         >
           <div className='flex flex-wrap gap-2'>
@@ -943,28 +939,28 @@ const ResultCard = ({ result }: { result: TransactionAnalysisResult }) => {
                       background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(239, 68, 68, 0.05) 100%)',
                       border: '1px solid rgba(239, 68, 68, 0.25)',
                       text: 'text-red-300',
-                      icon: '📤'
+                      icon: <ArrowUpRight className='w-4 h-4 text-red-300' />
                     };
                   case 'output':
                     return {
                       background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(34, 197, 94, 0.05) 100%)',
                       border: '1px solid rgba(34, 197, 94, 0.25)', 
                       text: 'text-green-300',
-                      icon: '📥'
+                      icon: <ArrowDownLeft className='w-4 h-4 text-green-300' />
                     };
                   case 'fee':
                     return {
                       background: 'linear-gradient(135deg, rgba(251, 146, 60, 0.15) 0%, rgba(251, 146, 60, 0.05) 100%)',
                       border: '1px solid rgba(251, 146, 60, 0.25)',
                       text: 'text-orange-300',
-                      icon: '⛽'
+                      icon: <Fuel className='w-4 h-4 text-orange-300' />
                     };
                   default:
                     return {
                       background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.05) 100%)',
                       border: '1px solid rgba(59, 130, 246, 0.25)',
                       text: 'text-blue-300',
-                      icon: '🪙'
+                      icon: <Coins className='w-4 h-4 text-blue-300' />
                     };
                 }
               };
@@ -982,7 +978,7 @@ const ResultCard = ({ result }: { result: TransactionAnalysisResult }) => {
                     minHeight: '36px',
                   }}
                 >
-                  <span className='text-sm'>{tokenStyle.icon}</span>
+                  <div className='text-sm'>{tokenStyle.icon}</div>
                   <span className='font-mono font-bold'>{token.symbol}</span>
                   {token.amount && (
                     <span className='text-xs opacity-80 font-medium'>
@@ -1009,7 +1005,7 @@ const ResultCard = ({ result }: { result: TransactionAnalysisResult }) => {
       {result.narrative && result.narrative.length > 0 && (
         <div className='space-y-3'>
           <div className='space-y-2'>
-            {result.narrative.slice(0, 3).map((step, index) => {
+            {result.narrative.map((step, index) => {
               // Enhanced step formatting and shortening
               let enhancedStep = step;
               if (step.includes('COMMS') && step.includes('525,363')) {
@@ -1022,10 +1018,6 @@ const ResultCard = ({ result }: { result: TransactionAnalysisResult }) => {
                 enhancedStep = enhancedStep.replace(/0\.000058860859719038/, '0.0000589');
               }
               
-              // Shorten long descriptions
-              if (enhancedStep.length > 80) {
-                enhancedStep = enhancedStep.substring(0, 77) + '...';
-              }
 
               return (
                 <div
@@ -1049,19 +1041,11 @@ const ResultCard = ({ result }: { result: TransactionAnalysisResult }) => {
                 </div>
               );
             })}
-            {result.narrative.length > 3 && (
-              <div 
-                className='text-center py-2'
-                style={floatingGlassStyle}
-              >
-                <span className='text-cyan-400/60 text-xs'>+{result.narrative.length - 3} more steps</span>
-              </div>
-            )}
           </div>
         </div>
       )}
 
-      {/* Financial Bubbles - Ultra-Clean Circular Glass Design */}
+      {/* Financial Metrics - Professional Card Layout */}
       {result.financials && (
         <div 
           className='relative overflow-hidden'
@@ -1071,115 +1055,103 @@ const ResultCard = ({ result }: { result: TransactionAnalysisResult }) => {
             background: 'radial-gradient(circle at 50% 50%, rgba(16, 185, 129, 0.06) 0%, rgba(16, 185, 129, 0.01) 100%)',
           }}
         >
-          {/* Floating Financial Bubbles */}
-          <div className='grid grid-cols-3 gap-4 place-items-center'>
+          <div className='grid grid-cols-2 gap-4'>
+            {/* Profit Card */}
             {result.financials.profit && (
               <div 
-                className='group relative'
+                className='group relative p-4'
                 style={{
                   ...liquidGlassStyle,
-                  width: '90px',
-                  height: '90px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  background: 'conic-gradient(from 180deg at 50% 50%, rgba(34, 197, 94, 0.2) 0deg, rgba(34, 197, 94, 0.08) 120deg, rgba(34, 197, 94, 0.12) 240deg, rgba(34, 197, 94, 0.2) 360deg)',
+                  minHeight: '100px',
+                  background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(34, 197, 94, 0.05) 100%)',
                   border: '1px solid rgba(34, 197, 94, 0.3)',
-                  animation: 'float 4s ease-in-out infinite',
-                  animationDelay: '0s',
                 }}
               >
-                <div className='text-center'>
-                  <div className='text-2xl mb-1'>💰</div>
-                  <div className='text-green-400 font-bold text-xs leading-none'>
-                    {result.financials.profit.includes('WETH')
-                      ? formatTokenAmount(result.financials.profit.split(' ')[0])
-                      : result.financials.profit.split(' ')[0]}
-                  </div>
+                <div className='flex items-center space-x-3 mb-2'>
+                  <DollarSign className='w-5 h-5 text-green-400' />
+                  <h3 className='text-green-400 font-semibold text-sm'>Profit</h3>
+                </div>
+                <div className='text-green-300 font-bold text-lg'>
+                  {result.financials.profit.includes('WETH')
+                    ? formatTokenAmount(result.financials.profit.split(' ')[0])
+                    : result.financials.profit.split(' ')[0]}
+                </div>
+                <div className='text-green-300/70 text-xs mt-1'>
+                  {result.financials.profit.includes('WETH') ? 'WETH' : result.financials.profit.split(' ')[1] || ''}
                 </div>
               </div>
             )}
             
+            {/* Cost Card */}
             {result.financials.cost && (
               <div 
-                className='group relative'
+                className='group relative p-4'
                 style={{
                   ...liquidGlassStyle,
-                  width: '80px',
-                  height: '80px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  background: 'conic-gradient(from 180deg at 50% 50%, rgba(251, 146, 60, 0.18) 0deg, rgba(251, 146, 60, 0.06) 120deg, rgba(251, 146, 60, 0.1) 240deg, rgba(251, 146, 60, 0.18) 360deg)',
+                  minHeight: '100px',
+                  background: 'linear-gradient(135deg, rgba(251, 146, 60, 0.15) 0%, rgba(251, 146, 60, 0.05) 100%)',
                   border: '1px solid rgba(251, 146, 60, 0.25)',
-                  animation: 'float 5s ease-in-out infinite',
-                  animationDelay: '1s',
                 }}
               >
-                <div className='text-center'>
-                  <div className='text-xl mb-1'>⛽</div>
-                  <div className='text-orange-400 font-bold text-xs leading-none'>
-                    {formatCurrency(result.financials.cost.split(' ')[0])}
-                  </div>
+                <div className='flex items-center space-x-3 mb-2'>
+                  <Fuel className='w-5 h-5 text-orange-400' />
+                  <h3 className='text-orange-400 font-semibold text-sm'>Cost</h3>
+                </div>
+                <div className='text-orange-300 font-bold text-lg'>
+                  {formatCurrency(result.financials.cost.split(' ')[0])}
+                </div>
+                <div className='text-orange-300/70 text-xs mt-1'>
+                  {result.financials.cost.split(' ')[1] || 'ETH'}
                 </div>
               </div>
             )}
 
+            {/* ROI Card */}
             {result.financials.roi && (
               <div 
-                className='group relative'
+                className='group relative p-4'
                 style={{
                   ...liquidGlassStyle,
-                  width: '75px',
-                  height: '75px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  background: 'conic-gradient(from 180deg at 50% 50%, rgba(6, 182, 212, 0.16) 0deg, rgba(6, 182, 212, 0.05) 120deg, rgba(6, 182, 212, 0.09) 240deg, rgba(6, 182, 212, 0.16) 360deg)',
+                  minHeight: '100px',
+                  background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.15) 0%, rgba(6, 182, 212, 0.05) 100%)',
                   border: '1px solid rgba(6, 182, 212, 0.25)',
-                  animation: 'float 6s ease-in-out infinite',
-                  animationDelay: '2s',
                 }}
               >
-                <div className='text-center'>
-                  <div className='text-lg mb-1'>📊</div>
-                  <div className='text-cyan-400 font-bold text-xs leading-none'>{result.financials.roi}</div>
+                <div className='flex items-center space-x-3 mb-2'>
+                  <BarChart3 className='w-5 h-5 text-cyan-400' />
+                  <h3 className='text-cyan-400 font-semibold text-sm'>ROI</h3>
+                </div>
+                <div className='text-cyan-300 font-bold text-lg'>{result.financials.roi}</div>
+                <div className='text-cyan-300/70 text-xs mt-1'>Return on Investment</div>
+              </div>
+            )}
+
+            {/* Net Profit Card */}
+            {result.financials.netProfit && (
+              <div 
+                className='group relative p-4'
+                style={{
+                  ...liquidGlassStyle,
+                  minHeight: '100px',
+                  background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(16, 185, 129, 0.05) 100%)',
+                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                }}
+              >
+                <div className='flex items-center space-x-3 mb-2'>
+                  <Target className='w-5 h-5 text-emerald-400' />
+                  <h3 className='text-emerald-400 font-semibold text-sm'>Net Profit</h3>
+                </div>
+                <div className='text-emerald-300 font-bold text-lg'>
+                  {result.financials.netProfit.includes('ETH')
+                    ? formatTokenAmount(result.financials.netProfit.split(' ')[0])
+                    : result.financials.netProfit.split(' ')[0]}
+                </div>
+                <div className='text-emerald-300/70 text-xs mt-1'>
+                  {result.financials.netProfit.includes('ETH') ? 'ETH' : result.financials.netProfit.split(' ')[1] || ''}
                 </div>
               </div>
             )}
           </div>
-
-          {/* Central Net Profit Bubble */}
-          {result.financials.netProfit && (
-            <div className='flex justify-center mt-6'>
-              <div 
-                className='group relative'
-                style={{
-                  ...liquidGlassStyle,
-                  width: '120px',
-                  height: '120px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  background: 'conic-gradient(from 180deg at 50% 50%, rgba(16, 185, 129, 0.25) 0deg, rgba(16, 185, 129, 0.1) 120deg, rgba(16, 185, 129, 0.15) 240deg, rgba(16, 185, 129, 0.25) 360deg)',
-                  border: '2px solid rgba(16, 185, 129, 0.4)',
-                  animation: 'float 7s ease-in-out infinite, glow 3s ease-in-out infinite alternate',
-                  animationDelay: '0.5s',
-                  boxShadow: '0 20px 60px rgba(16, 185, 129, 0.2), inset 0 2px 0 rgba(255,255,255,0.3)',
-                }}
-              >
-                <div className='text-center'>
-                  <div className='text-3xl mb-2'>🎯</div>
-                  <div className='text-emerald-400 font-bold text-sm leading-none'>
-                    {result.financials.netProfit.includes('ETH')
-                      ? formatTokenAmount(result.financials.netProfit.split(' ')[0])
-                      : result.financials.netProfit.split(' ')[0]}
-                  </div>
-                  <div className='text-emerald-300/50 text-xs mt-1'>NET</div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       )}
 
@@ -1196,7 +1168,11 @@ const ResultCard = ({ result }: { result: TransactionAnalysisResult }) => {
             {updatedProtocols.map((protocol, index) => {
               const isUniswap = protocol.toLowerCase().includes('uniswap');
               const isWETH = protocol.toLowerCase().includes('weth');
-              const protocolIcon = isUniswap ? '🦄' : isWETH ? '💎' : '🔗';
+              const getProtocolIcon = () => {
+                if (isUniswap) return <Link className='w-4 h-4' />;
+                if (isWETH) return <Gem className='w-4 h-4' />;
+                return <Link2 className='w-4 h-4' />;
+              };
               
               return (
                 <div
@@ -1218,10 +1194,9 @@ const ResultCard = ({ result }: { result: TransactionAnalysisResult }) => {
                     }`,
                     minHeight: '36px',
                     backgroundSize: '200% 100%',
-                    animationDelay: `${index * 0.5}s`,
                   }}
                 >
-                  <span className='text-sm'>{protocolIcon}</span>
+                  <div className='text-sm'>{getProtocolIcon()}</div>
                   <span className='font-medium'>{protocol}</span>
                 </div>
               );

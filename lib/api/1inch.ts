@@ -1,5 +1,7 @@
 // lib/api/1inch.ts
-
+import { Config } from '../config';
+import { Logger } from "../constants";
+import axios from 'axios';
 /**
  * @file This file centralizes all interactions with the 1inch APIs.
  * By creating dedicated functions for each data type we need, we keep our
@@ -8,7 +10,6 @@
  */
 
 const API_BASE_URL = 'https://1inch-vercel-proxy-psi.vercel.app';
-
 /**
  * Fetches the complete swap history for a given wallet address.
  * @param {string} address - The wallet address to analyze.
@@ -101,3 +102,28 @@ export const getHistoricalTokenPrice = async (tokenAddress: string, chainId: num
     // return fetch(...);
     return []; // Placeholder
 };
+
+export async function callRpc(chainId: number, method: string, params: any[]): Promise<any> {
+    const url = `${Config.API_BASE_URL}/web3/${chainId}`;
+    const body = { jsonrpc: '2.0', id: 1, method, params };
+    Logger.debug(`Calling RPC: ${method} on chain ${chainId}`, { params });
+
+    try {
+        const response = await axios.post(url, body, { headers: { 'Content-Type': 'application/json' } });
+        if ((response.data as any).error) throw new Error(`RPC Error: ${(response.data as any).error.message}`);
+        return (response.data as any).result;
+    } catch (error: any) {
+        if (error.response) {
+            Logger.error(`Axios Error calling RPC: ${error.response.status} - ${JSON.stringify(error.response.data)}`);
+        }
+        throw error;
+    }
+}
+
+// IMPROVED: Now accepts blockNumber directly to avoid a redundant RPC call.
+export async function getTransactionTrace(chainId: number, txHash: string, blockNumber: number): Promise<any> {
+    Logger.info(`Fetching detailed trace for ${txHash} in block ${blockNumber}...`);
+    const traceUrl = `${Config.API_BASE_URL}/traces/v1.0/chain/${chainId}/block-trace/${blockNumber}/tx-hash/${txHash}`;
+    const response = await axios.get(traceUrl);
+    return response.data;
+}

@@ -201,3 +201,18 @@ export interface MEVBotProfile {
     preferredProtocols: string[];
   };
 }
+export interface TokenFlow {
+  token: string;
+  direction: 'buy' | 'sell';
+  amount: bigint;
+  from: string;
+  to: string;
+}
+
+export interface TransactionPattern {
+  address: string;
+  tokenFlows: TokenFlow[];
+  gasPrice: bigint;
+  blockNumber: number;
+  transactionIndex: number;
+}

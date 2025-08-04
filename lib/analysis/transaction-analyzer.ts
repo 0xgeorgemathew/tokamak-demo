@@ -3,7 +3,7 @@ import { formatTokenAmount } from '../utils';
 import type { TokenInfo, TransactionMetadata, ProtocolInteraction, GasAnalysis, SandwichPattern, MEVBotProfile } from '../types';
 // Type definitions are now imported from ../types
 // Constants and Logger are now imported from ../constants
-import { getLlmAnalysis } from './llm';
+import { enhanceAnalysisForLLM, getLlmAnalysis, postProcessLLMResult } from './llm';
 import { callRpc, getTransactionTrace } from '../api/1inch';
 import { detectCrossBlockSandwich, detectSandwichByPattern, detectSandwichFromBackRun, detectSandwichFromFrontRun, detectSandwichFromVictim } from './detect-sandwich';
 import { TokenMetadataManager } from './tokens';
@@ -102,18 +102,7 @@ async function enrichTransactionMetadata(chainId: number, txHash: string, receip
   };
 }
 
-/**
- * Analyze gas efficiency based on usage and protocol complexity
- */
 
-
-/**
- * Analyze transaction trace for basic swap/trade patterns
- */
-
-/**
- * Comprehensive sandwich attack detection and analysis
- */
 async function detectAndAnalyzeSandwich(chainId: number, txHash: string, blockNumber: number, mainTxTrace: any): Promise<any | null> {
   Logger.info('Attempting to detect a sandwich attack pattern...');
   Logger.info(`🔍 Analysis Target: txHash=${txHash}, blockNumber=${blockNumber}`);
@@ -322,11 +311,21 @@ async function buildSandwichAnalysis(chainId: number, pattern: SandwichPattern, 
 /**
  * Present the final analysis report to console
  */
-function presentFinalReport(llmJson: any, txHash: string) {
+function presentFinalReport(llmJson: any, txHash: string, analysisType: string) {
   Logger.separator();
-  console.log(`\n--- ENHANCED MEV ANALYSIS REPORT for ${txHash} ---`);
+  console.log(`\n--- ${analysisType.toUpperCase()} ANALYSIS REPORT for ${txHash} ---`);
 
-  // Strategy and confidence
+  // Type-specific header
+  if (analysisType === 'sandwich') {
+    console.log(`🚨 SANDWICH ATTACK DETECTED`);
+    console.log(`🎯 Detection Method: ${llmJson.analysisMetadata?.detectionMethod || 'pattern-analysis'}`);
+  } else if (analysisType === 'arbitrage') {
+    console.log(`💹 ARBITRAGE OPPORTUNITY EXECUTED`);
+  } else {
+    console.log(`📊 GENERAL TRANSACTION ANALYSIS`);
+  }
+
+  // Common reporting
   console.log(`\n🔍 Strategy: ${llmJson.strategy || 'Unknown'}`);
   if (llmJson.confidence) {
     console.log(`📊 Confidence: ${llmJson.confidence.toUpperCase()}`);
@@ -334,36 +333,83 @@ function presentFinalReport(llmJson: any, txHash: string) {
 
   console.log(`\n🗣️  Summary: ${llmJson.summary || 'No summary provided.'}`);
 
-  // Detected protocols
+  // Protocols
   if (llmJson.protocols && Array.isArray(llmJson.protocols) && llmJson.protocols.length > 0) {
     console.log(`\n🔗 Protocols: ${llmJson.protocols.join(', ')}`);
   }
 
-  // Step-by-step narrative
+  // Narrative
   if (llmJson.narrative && Array.isArray(llmJson.narrative)) {
-    console.log('\n💬 Transaction Flow:');
+    console.log(`\n💬 Analysis Details:`);
     llmJson.narrative.forEach((step: string, index: number) => {
       console.log(`   ${index + 1}. ${step}`);
     });
   }
 
-  // Enhanced financial breakdown
+  // Type-specific financial reporting
   if (llmJson.financials) {
-    console.log('\n💰 Financial Analysis:');
-    if (llmJson.financials.profit) {
-      console.log(`   📈 Profit: ${llmJson.financials.profit}`);
+    if (analysisType === 'sandwich') {
+      console.log('\n🚨 Sandwich Attack Impact:');
+      if (llmJson.financials.attackerProfit) {
+        console.log(`   🏦 Attacker Profit: ${llmJson.financials.attackerProfit}`);
+      }
+      if (llmJson.financials.victimLoss) {
+        console.log(`   💸 Victim Loss: ${llmJson.financials.victimLoss}`);
+      }
+      if (llmJson.financials.netProfit) {
+        console.log(`   💰 Net Attack Profit: ${llmJson.financials.netProfit}`);
+      }
+    } else if (analysisType === 'arbitrage') {
+      console.log('\n💹 Arbitrage Performance:');
+      if (llmJson.financials.profit) {
+        console.log(`   📈 Gross Profit: ${llmJson.financials.profit}`);
+      }
+      if (llmJson.financials.cost) {
+        console.log(`   📉 Total Cost: ${llmJson.financials.cost}`);
+      }
+      if (llmJson.financials.netProfit) {
+        console.log(`   💎 Net Profit: ${llmJson.financials.netProfit}`);
+      }
+      if (llmJson.financials.roi) {
+        console.log(`   📊 ROI: ${llmJson.financials.roi}`);
+      }
+      if (llmJson.financials.capitalEfficiency) {
+        console.log(`   ⚡ Capital Efficiency: ${llmJson.financials.capitalEfficiency}`);
+      }
+    } else {
+      console.log('\n💰 Financial Analysis:');
+      if (llmJson.financials.profit) {
+        console.log(`   📈 Profit: ${llmJson.financials.profit}`);
+      }
+      if (llmJson.financials.cost) {
+        console.log(`   📉 Cost: ${llmJson.financials.cost}`);
+      }
+      if (llmJson.financials.netProfit) {
+        console.log(`   💎 Net Result: ${llmJson.financials.netProfit}`);
+      }
     }
-    if (llmJson.financials.cost) {
-      console.log(`   📉 Cost: ${llmJson.financials.cost}`);
+  }
+
+  // Type-specific additional sections
+  if (analysisType === 'sandwich' && llmJson.sandwichAnalysis) {
+    console.log('\n🎯 Sandwich Pattern Details:');
+    console.log(`   📍 Block Position: ${llmJson.sandwichAnalysis.blockPosition}`);
+    if (llmJson.sandwichAnalysis.frontRunTx) {
+      console.log(`   ⚡ Front-run TX: ${llmJson.sandwichAnalysis.frontRunTx}`);
     }
-    if (llmJson.financials.netProfit) {
-      console.log(`   💎 Net Profit: ${llmJson.financials.netProfit}`);
+    if (llmJson.sandwichAnalysis.backRunTx) {
+      console.log(`   🔄 Back-run TX: ${llmJson.sandwichAnalysis.backRunTx}`);
     }
-    if (llmJson.financials.roi) {
-      console.log(`   📊 ROI: ${llmJson.financials.roi}`);
+    if (llmJson.sandwichAnalysis.victimSlippage) {
+      console.log(`   💥 Victim Slippage: ${llmJson.sandwichAnalysis.victimSlippage}`);
     }
-  } else {
-    console.log('\n💰 Financial data not available in the response.');
+  }
+
+  if (llmJson.mevBotAnalysis) {
+    console.log('\n🤖 MEV Bot Analysis:');
+    console.log(`   🎯 Confidence: ${llmJson.mevBotAnalysis.confidence}`);
+    console.log(`   ⚡ TX Frequency: ${llmJson.mevBotAnalysis.txFrequency}`);
+    console.log(`   ⛽ Avg Gas Price: ${llmJson.mevBotAnalysis.avgGasPrice}`);
   }
 
   Logger.separator();
@@ -374,63 +420,58 @@ function presentFinalReport(llmJson: any, txHash: string) {
  */
 export async function analyzeTransaction(chainId: number, txHash: string) {
   try {
-    // Step 1: Fetch all necessary data ONCE.
+    // Step 1: Fetch all necessary data
     Logger.info(`Starting analysis for ${txHash} on chain ${chainId}`);
     const receipt = await callRpc(chainId, 'eth_getTransactionReceipt', [ txHash ]);
     if (!receipt) throw new Error(`Transaction receipt not found for hash ${txHash}.`);
 
     const blockNumber = parseInt(receipt.blockNumber, 16);
     const mainTraceData = await getTransactionTrace(chainId, txHash, blockNumber);
-    // console.log(JSON.stringify(mainTraceData, null, 2)); // DEBUG: Log the mainTraceData);
     const metadata = await enrichTransactionMetadata(chainId, txHash, receipt);
 
-    // Step 2: Attempt to analyze as a sandwich, passing the pre-fetched data.
+    // Step 2: Determine analysis type and run appropriate detection
     let analysis: any;
-    const sandwichData = await detectAndAnalyzeSandwich(chainId, txHash, blockNumber, mainTraceData);
+    let analysisType: string;
 
-    // DEBUG: Log sandwich detection results
-    Logger.info(
-      `🔍 Sandwich Detection Results: exists=${!!sandwichData}, type=${sandwichData?.type}, isSandwichAttack=${sandwichData?.isSandwichAttack}, method=${sandwichData?.detectionMethod
-      }`
-    );
+    // PRIORITY 1: Check for sandwich attack patterns
+    const sandwichData = await detectAndAnalyzeSandwich(chainId, txHash, blockNumber, mainTraceData);
 
     if (sandwichData) {
       analysis = { type: 'Sandwich', ...sandwichData };
-      Logger.info('✅ Sandwich attack analysis complete - data will be sent to LLM');
-      Logger.debug(
-        `📊 Final sandwich analysis: type=${analysis.type
-        }, hasDetectionMethod=${!!analysis.detectionMethod}, hasSandwichPattern=${!!analysis.sandwichPattern}, hasEnhancedDetection=${!!analysis.enhancedDetection}, isSandwichAttack=${analysis.isSandwichAttack
-        }`
-      );
+      analysisType = 'sandwich';
+      Logger.info('✅ Sandwich attack detected - routing to specialized sandwich analysis');
     } else {
-      // Step 2b: If not a sandwich, check for arbitrage patterns
-      Logger.info('❌ No sandwich detected. Checking for arbitrage patterns...');
+      // PRIORITY 2: Check for arbitrage patterns  
       const arbitrageAnalysis = await detectArbitrage(chainId, txHash, mainTraceData, metadata);
 
       if (arbitrageAnalysis) {
-        Logger.info('✅ Arbitrage pattern detected!');
         analysis = { type: 'Arbitrage', ...arbitrageAnalysis };
+        analysisType = 'arbitrage';
+        Logger.info('✅ Arbitrage pattern detected - routing to specialized arbitrage analysis');
       } else {
-        // Fallback to simple analysis
-        Logger.info('No specific MEV pattern detected. Analyzing as general swap transaction.');
+        // FALLBACK: General swap analysis
         const simpleAnalysis = await analyzeSimpleTrace(chainId, mainTraceData, metadata);
         analysis = { type: 'Swap', ...simpleAnalysis };
+        analysisType = 'general';
+        Logger.info('📊 General transaction detected - routing to general swap analysis');
       }
     }
 
-    // Step 3: Get LLM summary and report it.
-    Logger.info(
-      `📤 About to send analysis to LLM: type=${analysis.type
-      }, hasDetectionMethod=${!!analysis.detectionMethod}, hasSandwichPattern=${!!analysis.sandwichPattern}, hasEnhancedDetection=${!!analysis.enhancedDetection}, isSandwichAttack=${analysis.isSandwichAttack
-      }`
-    );
+    // Step 3: Enhance data for LLM and get specialized analysis
+    Logger.info(`🎯 Analysis type determined: ${analysisType}`);
+    Logger.info(`📊 Key indicators: sandwich=${!!sandwichData}, arbitrage=${!!analysis.pattern}, protocols=${analysis.protocols?.length || 0}`);
 
-    const llmReport = await getLlmAnalysis(analysis);
-    presentFinalReport(llmReport, txHash);
-    return llmReport;
+    const enhancedAnalysis = enhanceAnalysisForLLM(analysis);
+    const llmReport = await getLlmAnalysis(enhancedAnalysis);
+    const finalReport = postProcessLLMResult(llmReport, analysisType, analysis);
+
+    // Step 4: Present results
+    presentFinalReport(finalReport, txHash, analysisType);
+    return finalReport;
+
   } catch (error) {
-    Logger.error(`An error occurred during the analysis of ${txHash}: ${error}`);
-    // Re-throw the error so the calling context (e.g., an API route) can handle it
+    Logger.error(`Analysis failed for ${txHash}: ${error}`);
     throw error;
   }
 }
+

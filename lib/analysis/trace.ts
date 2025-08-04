@@ -34,10 +34,25 @@ export async function analyzeSimpleTrace(chainId: number, traceData: any, metada
 
     Logger.debug('Controlled addresses:', Array.from(controlledAddresses));
 
-    // STEP 2: NEW ALGORITHM - Track all token movements in/out of controlled addresses
-    const tokenMovements: Record<string, { in: bigint; out: bigint }> = {};
+    // STEP 2: CORRECTED ALGORITHM - Track COMPLETE token flow including initial investments
+    const tokenMovements: Record<string, {
+        totalIn: bigint;
+        totalOut: bigint;
+        initialBalance: bigint;
+        finalBalance: bigint;
+    }> = {};
 
-    // Process ERC20 transfers
+    // FIX #1: Process initial transaction value (ETH sent with transaction)
+    const initialEthValue = BigInt(trace.value || '0x0');
+    if (initialEthValue > 0n) {
+        if (!tokenMovements[ NATIVE_ETH_ADDRESS ]) {
+            tokenMovements[ NATIVE_ETH_ADDRESS ] = { totalIn: 0n, totalOut: 0n, initialBalance: 0n, finalBalance: 0n };
+        }
+        tokenMovements[ NATIVE_ETH_ADDRESS ].totalOut += initialEthValue;
+        Logger.debug(`💸 Initial ETH: -${initialEthValue} (transaction value)`);
+    }
+
+    // FIX #2: Process ALL ERC20 transfers and track balances properly
     trace.events?.forEach((event: any) => {
         if (event.topics?.[ 0 ] === ERC20_TRANSFER_TOPIC && event.topics.length >= 3) {
             const token = event.contract.toLowerCase();
@@ -46,105 +61,114 @@ export async function analyzeSimpleTrace(chainId: number, traceData: any, metada
             const amount = BigInt(event.data);
 
             if (!tokenMovements[ token ]) {
-                tokenMovements[ token ] = { in: 0n, out: 0n };
+                tokenMovements[ token ] = { totalIn: 0n, totalOut: 0n, initialBalance: 0n, finalBalance: 0n };
             }
 
-            // Track money flowing INTO controlled addresses (positive for us)
-            if (controlledAddresses.has(to) && !controlledAddresses.has(from)) {
-                tokenMovements[ token ].in += amount;
-                Logger.debug(`💰 ${token}: +${amount} (external → controlled)`);
+            // Track ALL movements involving controlled addresses
+            if (controlledAddresses.has(from)) {
+                tokenMovements[ token ].totalOut += amount;
+                Logger.debug(`💸 ${token}: -${amount} (${from} → ${to})`);
             }
-
-            // Track money flowing OUT OF controlled addresses (negative for us)
-            if (controlledAddresses.has(from) && !controlledAddresses.has(to)) {
-                tokenMovements[ token ].out += amount;
-                Logger.debug(`💸 ${token}: -${amount} (controlled → external)`);
+            if (controlledAddresses.has(to)) {
+                tokenMovements[ token ].totalIn += amount;
+                Logger.debug(`💰 ${token}: +${amount} (${from} → ${to})`);
             }
         }
     });
 
-    // Process ETH transfers
+    // FIX #3: Process ETH transfers in calls
     const processEthTransfers = (call: any) => {
         const value = BigInt(call.value || '0x0');
         if (value > 0n) {
             if (!tokenMovements[ NATIVE_ETH_ADDRESS ]) {
-                tokenMovements[ NATIVE_ETH_ADDRESS ] = { in: 0n, out: 0n };
+                tokenMovements[ NATIVE_ETH_ADDRESS ] = { totalIn: 0n, totalOut: 0n, initialBalance: 0n, finalBalance: 0n };
             }
 
-            if (controlledAddresses.has(call.to.toLowerCase()) && !controlledAddresses.has(call.from.toLowerCase())) {
-                tokenMovements[ NATIVE_ETH_ADDRESS ].in += value;
-                Logger.debug(`💰 ETH: +${value} (external → controlled)`);
+            if (controlledAddresses.has(call.from?.toLowerCase())) {
+                tokenMovements[ NATIVE_ETH_ADDRESS ].totalOut += value;
+                Logger.debug(`💸 ETH call: -${value} (${call.from} → ${call.to})`);
             }
-
-            if (controlledAddresses.has(call.from.toLowerCase()) && !controlledAddresses.has(call.to.toLowerCase())) {
-                tokenMovements[ NATIVE_ETH_ADDRESS ].out += value;
-                Logger.debug(`💸 ETH: -${value} (controlled → external)`);
+            if (controlledAddresses.has(call.to?.toLowerCase())) {
+                tokenMovements[ NATIVE_ETH_ADDRESS ].totalIn += value;
+                Logger.debug(`💰 ETH call: +${value} (${call.from} → ${call.to})`);
             }
         }
         call.calls?.forEach(processEthTransfers);
     };
     if (trace.calls) processEthTransfers(trace);
 
-    // STEP 3: Calculate transaction fees
+    // STEP 4: Calculate transaction fees (always a cost)
     const txFee = BigInt(trace.gasUsed || '0x0') * BigInt(trace.gasPrice || '0x0');
     if (!tokenMovements[ NATIVE_ETH_ADDRESS ]) {
-        tokenMovements[ NATIVE_ETH_ADDRESS ] = { in: 0n, out: 0n };
+        tokenMovements[ NATIVE_ETH_ADDRESS ] = { totalIn: 0n, totalOut: 0n, initialBalance: 0n, finalBalance: 0n };
     }
-    tokenMovements[ NATIVE_ETH_ADDRESS ].out += txFee; // Gas is always a cost
+    tokenMovements[ NATIVE_ETH_ADDRESS ].totalOut += txFee;
     Logger.debug(`⛽ Gas fee: ${txFee} ETH`);
 
-    // STEP 4: Calculate TRUE net changes (profit/loss per token)
+    // STEP 5: CRITICAL FIX - Calculate TRUE net changes
     const netChanges: Record<string, bigint> = {};
     const totalInflows: Record<string, bigint> = {};
     const totalOutflows: Record<string, bigint> = {};
 
     for (const [ token, movements ] of Object.entries(tokenMovements)) {
-        const netChange = movements.in - movements.out;
+        const netChange = movements.totalIn - movements.totalOut;
 
-        if (netChange !== 0n || movements.in > 0n || movements.out > 0n) {
+        // Only include tokens that had actual movement
+        if (movements.totalIn > 0n || movements.totalOut > 0n) {
             netChanges[ token ] = netChange;
-            totalInflows[ token ] = movements.in;
-            totalOutflows[ token ] = movements.out;
+            totalInflows[ token ] = movements.totalIn;
+            totalOutflows[ token ] = movements.totalOut;
 
-            Logger.debug(`🧮 ${token} Net Analysis: In=${movements.in}, Out=${movements.out}, Net=${netChange}`);
+            Logger.debug(`🧮 ${token} CORRECTED Analysis: In=${movements.totalIn}, Out=${movements.totalOut}, Net=${netChange}`);
         }
     }
 
-    // STEP 5: Enrich and format for LLM
-    const enrichedNetChanges: { token: TokenInfo; amount: bigint; totalIn: bigint; totalOut: bigint }[] = [];
+    // STEP 6: Enrich with token metadata
+    const enrichedNetChanges: {
+        token: TokenInfo;
+        amount: bigint;
+        totalIn: bigint;
+        totalOut: bigint;
+        netChangeFormatted: string;
+    }[] = [];
 
     for (const [ address, netAmount ] of Object.entries(netChanges)) {
         const tokenInfo = await TokenMetadataManager.getTokenInfo(chainId, address);
+        const totalIn = totalInflows[ address ] || 0n;
+        const totalOut = totalOutflows[ address ] || 0n;
+
         enrichedNetChanges.push({
             token: tokenInfo,
             amount: netAmount,
-            totalIn: totalInflows[ address ] || 0n,
-            totalOut: totalOutflows[ address ] || 0n
+            totalIn,
+            totalOut,
+            netChangeFormatted: formatTokenAmount(
+                netAmount > 0n ? netAmount : -netAmount,
+                tokenInfo.decimals,
+                tokenInfo.symbol
+            )
         });
     }
 
-    // STEP 6: Format for LLM with clear profit/loss distinction
-    const formatEnrichedForLlm = (items: { token: TokenInfo; amount: bigint; totalIn: bigint; totalOut: bigint }[]) =>
+    // STEP 7: Format for LLM with CORRECTED profit/loss data
+    const formatEnrichedForLlm = (items: typeof enrichedNetChanges) =>
         items.map((item) => ({
             token: item.token,
             rawAmount: (item.amount > 0n ? item.amount : -item.amount).toString(),
-            formattedAmount: formatTokenAmount(
-                item.amount > 0n ? item.amount : -item.amount,
-                item.token.decimals,
-                item.token.symbol
-            ),
+            formattedAmount: item.netChangeFormatted,
             isProfit: item.amount > 0n,
-            // Additional context for debugging
+            // CORRECTED: Show actual total flows for transparency
             totalReceived: formatTokenAmount(item.totalIn, item.token.decimals, item.token.symbol),
             totalSpent: formatTokenAmount(item.totalOut, item.token.decimals, item.token.symbol),
-            netChange: formatTokenAmount(
-                item.amount > 0n ? item.amount : -item.amount,
-                item.token.decimals,
-                item.token.symbol
-            ) + (item.amount > 0n ? ' profit' : ' loss')
+            netChange: `${item.netChangeFormatted} ${item.amount > 0n ? 'profit' : 'loss'}`,
+            // FIX: Add investment context
+            investmentFlow: item.totalOut > 0n && item.totalIn > 0n ?
+                `Invested ${formatTokenAmount(item.totalOut, item.token.decimals, item.token.symbol)}, received ${formatTokenAmount(item.totalIn, item.token.decimals, item.token.symbol)}` :
+                item.totalOut > 0n ? `Spent ${formatTokenAmount(item.totalOut, item.token.decimals, item.token.symbol)}` :
+                    `Received ${formatTokenAmount(item.totalIn, item.token.decimals, item.token.symbol)}`
         }));
 
-    // STEP 7: CRITICAL FIX - Only include tokens with actual net changes
+    // STEP 8: Filter to only include tokens with net changes (CRITICAL)
     const tokensWithNetChanges = enrichedNetChanges.filter((c) => c.amount !== 0n);
 
     // Separate into losses and gains based on NET amounts
@@ -155,13 +179,13 @@ export async function analyzeSimpleTrace(chainId: number, traceData: any, metada
     const primaryAssetIn = losses.length > 0 ? formatEnrichedForLlm([ losses[ 0 ] ])[ 0 ] : null;
     const primaryAssetOut = gains.length > 0 ? formatEnrichedForLlm([ gains[ 0 ] ])[ 0 ] : null;
 
-    // STEP 8: Build comprehensive financial summary
+    // STEP 9: Build CORRECTED financial summary
     const allNetChanges = formatEnrichedForLlm(tokensWithNetChanges);
 
-    Logger.info(`📊 Net Changes Summary:`);
+    Logger.info(`📊 CORRECTED Net Changes Summary:`);
     allNetChanges.forEach(change => {
         Logger.info(`   ${change.token.symbol}: ${change.isProfit ? '+' : '-'}${change.formattedAmount} (net ${change.isProfit ? 'profit' : 'loss'})`);
-        Logger.debug(`      Total received: ${change.totalReceived}, Total spent: ${change.totalSpent}`);
+        Logger.info(`      Investment flow: ${change.investmentFlow}`);
     });
 
     return {
@@ -180,15 +204,20 @@ export async function analyzeSimpleTrace(chainId: number, traceData: any, metada
         protocols: detectedProtocols,
         gasAnalysis,
 
-        // FIXED: Now shows actual net profit/loss per token
+        // CORRECTED: Now shows actual net profit/loss per token
         financials: {
             netProfitOrLoss: allNetChanges,
 
-            // Additional breakdown for better analysis
-            totalInflows: formatEnrichedForLlm(tokensWithNetChanges.map(c => ({ ...c, amount: c.totalIn }))),
-            totalOutflows: formatEnrichedForLlm(tokensWithNetChanges.map(c => ({ ...c, amount: c.totalOut }))),
+            // Enhanced breakdown for better analysis
+            investmentBreakdown: allNetChanges.map(change => ({
+                token: change.token.symbol,
+                invested: change.totalSpent,
+                received: change.totalReceived,
+                netProfit: change.netChange,
+                investmentContext: change.investmentFlow
+            })),
 
-            // Summary metrics
+            // Summary metrics  
             totalTokensInvolved: tokensWithNetChanges.length,
             profitableTokens: gains.length,
             lossTokens: losses.length,
@@ -198,30 +227,43 @@ export async function analyzeSimpleTrace(chainId: number, traceData: any, metada
             assetIn: primaryAssetIn,
             assetOut: primaryAssetOut,
 
-            // Enhanced swap context
+            // Enhanced swap context with CORRECTED interpretation
             swapType: tokensWithNetChanges.length === 2 ? 'simple-swap' :
                 tokensWithNetChanges.length > 2 ? 'multi-token-arbitrage' : 'complex',
-            netProfitSummary: gains.map(g =>
-                `+${formatTokenAmount(g.amount, g.token.decimals, g.token.symbol)}`
-            ).join(', ') +
-                (losses.length > 0 ? ' | ' + losses.map(l =>
-                    `-${formatTokenAmount(-l.amount, l.token.decimals, l.token.symbol)}`
-                ).join(', ') : ''),
+            netProfitSummary: `Net result: ${gains.map(g =>
+                `+${g.netChangeFormatted}`
+            ).join(', ')}${losses.length > 0 ? ' | ' + losses.map(l =>
+                `-${l.netChangeFormatted}`
+            ).join(', ') : ''}`,
+
+            // FIX: Add investment context to swap details
+            tradeAnalysis: {
+                type: 'arbitrage',
+                description: `Converted ${primaryAssetIn?.formattedAmount || 'assets'} to ${primaryAssetOut?.formattedAmount || 'assets'}`,
+                realProfit: gains.length > 0 ? gains[ 0 ].netChangeFormatted : 'No profit',
+                investmentRequired: losses.length > 0 ? losses.map(l => l.netChangeFormatted).join(', ') : 'No investment'
+            }
         },
 
-        // Debug information
+        // Enhanced debug information
         debugInfo: {
             controlledAddresses: Array.from(controlledAddresses),
-            tokenMovements: Object.fromEntries(
+            correctedTokenMovements: Object.fromEntries(
                 Object.entries(tokenMovements).map(([ token, movements ]) => [
                     token,
                     {
-                        in: movements.in.toString(),
-                        out: movements.out.toString(),
-                        net: (movements.in - movements.out).toString()
+                        totalIn: movements.totalIn.toString(),
+                        totalOut: movements.totalOut.toString(),
+                        netChange: (movements.totalIn - movements.totalOut).toString(),
+                        hasRealProfit: movements.totalIn > movements.totalOut
                     }
                 ])
-            )
+            ),
+            transactionFlow: {
+                initialValue: trace.value || '0x0',
+                gasCost: txFee.toString(),
+                explanation: 'Net changes now properly account for initial investments and final receipts'
+            }
         }
     };
 }

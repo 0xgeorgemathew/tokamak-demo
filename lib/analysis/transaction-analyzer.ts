@@ -9,37 +9,15 @@ import { detectCrossBlockSandwich, detectSandwichByPattern, detectSandwichFromBa
 import { TokenMetadataManager } from './tokens';
 import { calculatePriceImpact } from './calculations';
 import { detectArbitrage } from './detect-arbitrage';
+import { detectProtocols } from './detect-protocols';
+import { analyzeGasEfficiency } from './gas';
+import { analyzeSimpleTrace } from './trace';
 
 // --- Core Analysis Functions ---
 
 /**
  * Detect protocols involved in the transaction
  */
-function detectProtocols(trace: any): ProtocolInteraction[] {
-  const protocols: ProtocolInteraction[] = [];
-  const addresses = new Set<string>();
-
-  // Collect all interacted addresses
-  addresses.add(trace.to?.toLowerCase());
-  const collectAddresses = (call: any) => {
-    if (call.to) addresses.add(call.to.toLowerCase());
-    call.calls?.forEach(collectAddresses);
-  };
-  if (trace.calls) collectAddresses(trace);
-
-  // Match against known protocols
-  for (const address of addresses) {
-    if (address && KNOWN_PROTOCOLS[ address as keyof typeof KNOWN_PROTOCOLS ]) {
-      protocols.push({
-        address,
-        protocol: KNOWN_PROTOCOLS[ address as keyof typeof KNOWN_PROTOCOLS ],
-        confidence: 'high',
-      });
-    }
-  }
-
-  return protocols;
-}
 
 /**
  * Analyze MEV bot behavior patterns
@@ -127,134 +105,11 @@ async function enrichTransactionMetadata(chainId: number, txHash: string, receip
 /**
  * Analyze gas efficiency based on usage and protocol complexity
  */
-function analyzeGasEfficiency(gasUsed: number, protocols: ProtocolInteraction[]): GasAnalysis {
-  let efficiency: 'high' | 'medium' | 'low' = 'medium';
 
-  // Simple heuristics for gas efficiency
-  if (gasUsed < 100000) efficiency = 'high';
-  else if (gasUsed > 500000) efficiency = 'low';
-
-  // Adjust based on complexity (multiple protocols = more complex)
-  if (protocols.length > 2 && gasUsed < 200000) efficiency = 'high';
-
-  return {
-    totalGasUsed: gasUsed,
-    gasPrice: '0', // Will be filled by caller
-    gasCostEth: '0', // Will be filled by caller
-    gasEfficiency: efficiency,
-  };
-}
 
 /**
  * Analyze transaction trace for basic swap/trade patterns
  */
-async function analyzeSimpleTrace(chainId: number, traceData: any, metadata?: TransactionMetadata): Promise<any> {
-  const trace = traceData.transactionTrace;
-  const initiator = trace.from.toLowerCase();
-  const proxyContract = trace.to.toLowerCase();
-
-  // Enhanced protocol detection
-  const detectedProtocols = detectProtocols(trace);
-  Logger.info(`Detected protocols: ${detectedProtocols.map((p) => p.protocol).join(', ')}`);
-
-  // Gas efficiency analysis
-  const gasUsed = parseInt(trace.gasUsed || '0x0', 16);
-  const gasAnalysis = analyzeGasEfficiency(gasUsed, detectedProtocols);
-  if (metadata) {
-    gasAnalysis.gasPrice = metadata.gasPrice;
-    gasAnalysis.gasCostEth = metadata.gasCostEth;
-  }
-
-  const controlledAddresses = new Set([ initiator, proxyContract ]);
-  const findControlledRecursive = (call: any) => {
-    if (controlledAddresses.has(call.from.toLowerCase())) {
-      controlledAddresses.add(call.to.toLowerCase());
-    }
-    call.calls?.forEach(findControlledRecursive);
-  };
-  if (trace.calls) findControlledRecursive(trace);
-
-  Logger.debug('Expanded controlled addresses:', Array.from(controlledAddresses));
-
-  const netChanges: Record<string, bigint> = {};
-
-  // 1. Calculate Net Changes for all assets
-  trace.events?.forEach((event: any) => {
-    if (event.topics?.[ 0 ] === ERC20_TRANSFER_TOPIC && event.topics.length >= 3) {
-      const token = event.contract.toLowerCase();
-      const from = `0x${event.topics[ 1 ].slice(26)}`.toLowerCase();
-      const to = `0x${event.topics[ 2 ].slice(26)}`.toLowerCase();
-      const amount = BigInt(event.data);
-      netChanges[ token ] = netChanges[ token ] || 0n;
-      if (controlledAddresses.has(from)) netChanges[ token ] -= amount;
-      if (controlledAddresses.has(to)) netChanges[ token ] += amount;
-    }
-  });
-
-  const parseEthTransfers = (call: any) => {
-    netChanges[ NATIVE_ETH_ADDRESS ] = netChanges[ NATIVE_ETH_ADDRESS ] || 0n;
-    const value = BigInt(call.value || '0x0');
-    if (value > 0n) {
-      if (controlledAddresses.has(call.from.toLowerCase())) netChanges[ NATIVE_ETH_ADDRESS ] -= value;
-      if (controlledAddresses.has(call.to.toLowerCase())) netChanges[ NATIVE_ETH_ADDRESS ] += value;
-    }
-    call.calls?.forEach(parseEthTransfers);
-  };
-  if (trace.calls) parseEthTransfers(trace);
-
-  const txFee = BigInt(trace.gasUsed || '0x0') * BigInt(trace.gasPrice || '0x0');
-  netChanges[ NATIVE_ETH_ADDRESS ] = (netChanges[ NATIVE_ETH_ADDRESS ] || 0n) - txFee;
-
-  // 2. Enrich and Format data for the LLM
-  const enrichedNetChanges: { token: TokenInfo; amount: bigint }[] = [];
-  for (const [ address, amount ] of Object.entries(netChanges)) {
-    if (amount === 0n) continue;
-    const tokenInfo = await TokenMetadataManager.getTokenInfo(chainId, address);
-    enrichedNetChanges.push({ token: tokenInfo, amount });
-  }
-
-  const formatEnrichedForLlm = (items: { token: TokenInfo; amount: bigint }[]) =>
-    items.map((item) => ({
-      token: item.token,
-      rawAmount: (item.amount > 0 ? item.amount : -item.amount).toString(),
-      formattedAmount: formatTokenAmount(item.amount > 0 ? item.amount : -item.amount, item.token.decimals, item.token.symbol),
-      isProfit: item.amount > 0,
-    }));
-
-  // 3. FIXED: Only include actual net changes (non-zero profits/losses)
-  // Filter out zero net changes to show only actual profit/loss per token
-  const actualNetChanges = enrichedNetChanges.filter((c) => c.amount !== 0n);
-
-  const losses = actualNetChanges.filter((c) => c.amount < 0n).sort((a, b) => Number(a.amount - b.amount)); // Most negative first
-  const gains = actualNetChanges.filter((c) => c.amount > 0n).sort((a, b) => Number(b.amount - a.amount)); // Most positive first
-
-  const primaryAssetIn = losses.length > 0 ? formatEnrichedForLlm([ losses[ 0 ] ])[ 0 ] : null;
-  const primaryAssetOut = gains.length > 0 ? formatEnrichedForLlm([ gains[ 0 ] ])[ 0 ] : null;
-
-  return {
-    metadata: metadata || {
-      txHash: trace.hash || 'unknown',
-      blockNumber: 0,
-      blockTimestamp: 0,
-      transactionIndex: 0,
-      gasUsed: gasUsed.toString(),
-      gasPrice: '0',
-      gasCostEth: '0',
-      from: initiator,
-      to: proxyContract,
-      value: trace.value || '0x0',
-    },
-    protocols: detectedProtocols,
-    gasAnalysis,
-    financials: {
-      netProfitOrLoss: formatEnrichedForLlm(actualNetChanges),
-    },
-    swapDetails: {
-      assetIn: primaryAssetIn,
-      assetOut: primaryAssetOut,
-    },
-  };
-}
 
 /**
  * Comprehensive sandwich attack detection and analysis
@@ -526,6 +381,7 @@ export async function analyzeTransaction(chainId: number, txHash: string) {
 
     const blockNumber = parseInt(receipt.blockNumber, 16);
     const mainTraceData = await getTransactionTrace(chainId, txHash, blockNumber);
+    // console.log(JSON.stringify(mainTraceData, null, 2)); // DEBUG: Log the mainTraceData);
     const metadata = await enrichTransactionMetadata(chainId, txHash, receipt);
 
     // Step 2: Attempt to analyze as a sandwich, passing the pre-fetched data.

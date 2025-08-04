@@ -216,3 +216,49 @@ export interface TransactionPattern {
   blockNumber: number;
   transactionIndex: number;
 }
+
+export interface ArbitragePattern {
+  type: 'simple-arbitrage' | 'cross-protocol' | 'triangular' | 'flash-loan';
+  confidence: 'high' | 'medium' | 'low';
+  protocols: ProtocolInteraction[];
+  tokenPairs: string[];
+  priceImbalance?: number;
+  profitability: {
+    gross: string;
+    net: string;
+    roi: string;
+  };
+  complexity: number;
+}
+
+export interface ArbitrageAnalysis {
+  isArbitrage: boolean;
+  pattern?: ArbitragePattern;
+  swapPath: ArbitrageSwap[];
+  financials: {
+    inputTokens: EnrichedToken[];
+    outputTokens: EnrichedToken[];
+    netProfitOrLoss: EnrichedToken[];
+  };
+  gasEfficiency: {
+    totalGasUsed: number;
+    gasCostEth: string;
+    profitAfterGas: string;
+  };
+}
+
+export interface ArbitrageSwap {
+  protocol: string;
+  tokenIn: TokenInfo;
+  tokenOut: TokenInfo;
+  amountIn: string;
+  amountOut: string;
+  priceImpact?: number;
+}
+
+export interface EnrichedToken {
+  token: TokenInfo;
+  rawAmount: string;
+  formattedAmount: string;
+  isProfit: boolean;
+}

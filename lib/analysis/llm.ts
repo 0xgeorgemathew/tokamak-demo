@@ -1,16 +1,26 @@
+// lib/analysis/llm.ts - UPDATED to handle corrected financial data
+
 import { Config, getOpenAI } from '../config';
 import {
-    ERC20_TRANSFER_TOPIC,
-    NATIVE_ETH_ADDRESS,
-    KNOWN_PROTOCOLS,
-    MEV_BOT_PATTERNS,
-    MEV_BOT_HEURISTICS,
-    Logger
+  ERC20_TRANSFER_TOPIC,
+  NATIVE_ETH_ADDRESS,
+  KNOWN_PROTOCOLS,
+  MEV_BOT_PATTERNS,
+  MEV_BOT_HEURISTICS,
+  Logger
 } from '../constants';
 import type { TokenInfo, EnrichedAsset, TransactionMetadata, ProtocolInteraction, GasAnalysis, SandwichPattern, PriceImpactAnalysis, MEVBotProfile } from '../types';
+
 export async function getLlmAnalysis(analysisData: any): Promise<any> {
-    const prompt = `
+  const prompt = `
 You are a senior DeFi protocol analyst specializing in MEV (Maximal Extractable Value) and on-chain transaction analysis. Your expertise includes identifying arbitrage opportunities, sandwich attacks, liquidations, and complex DeFi strategies across protocols like Uniswap, Curve, Balancer, 1inch, and others.
+
+### CRITICAL: Enhanced Financial Data Understanding
+The input data now contains CORRECTED net profit/loss calculations:
+- \`netProfitOrLoss\`: Shows actual NET changes per token (e.g., +0.0035 WETH net profit, not +0.278 total received)
+- \`totalInflows\`: Total amounts received per token
+- \`totalOutflows\`: Total amounts spent per token  
+- \`netChange\`: Describes the actual profit/loss with context
 
 ### CRITICAL: Pattern-First Analysis
 PRIORITIZE transaction patterns over financial data. Even if profit calculations are unclear or missing, sandwich attacks can be definitively identified by transaction sequences and token flow patterns.
@@ -36,16 +46,16 @@ PRIORITIZE transaction patterns over financial data. Even if profit calculations
 - \`metadata\`: Transaction context (gas, timing, protocols used)
 - \`protocols\`: Detected DeFi protocols and their confidence levels
 - \`swapDetails\` / \`frontRunSwap\` / \`backRunSwap\` / \`victimSwap\`: Asset flow information
-- \`financials\` / \`combinedFinancials\`: **NET PROFIT/LOSS ANALYSIS** - These represent actual net changes per token, not total amounts moved
+- \`financials\` / \`combinedFinancials\`: **CORRECTED NET PROFIT/LOSS ANALYSIS** 
 - \`mevBotProfile\`: MEV bot behavioral analysis
 - \`priceImpact\`: Price manipulation analysis
 
-### CRITICAL: Profit vs Revenue Calculation Rules:
-1. **Net Profit**: Use the \`netProfitOrLoss\` data which shows actual net change per token (e.g., +0.0035 WETH, not +0.278 WETH total received)
-2. **Revenue**: Total value of assets received 
-3. **Cost**: Total value of assets spent + gas costs
-4. **Profit Formula**: Revenue - Cost = Net Profit
-5. **Multi-Token Arbitrage**: For triangular arbitrage (WETH → COMMS → WETH), show net change per token, not intermediate amounts
+### CRITICAL: Updated Profit Calculation Rules:
+1. **Net Profit**: Use \`netProfitOrLoss\` which now shows ACTUAL net changes per token
+2. **Revenue**: Use \`totalInflows\` for total value received 
+3. **Cost**: Use \`totalOutflows\` for total value spent (including gas)
+4. **True Profit Formula**: Net Profit = Total Inflows - Total Outflows
+5. **Multi-Token Arbitrage**: Show net changes per token from \`netProfitOrLoss\` array
 
 ### CRITICAL ANALYSIS RULES:
 1. **CHECK FOR SANDWICH PATTERN FIRST**: Look for \`detectionMethod\` and \`sandwichPattern\` fields in the input data
@@ -64,7 +74,30 @@ PRIORITIZE transaction patterns over financial data. Even if profit calculations
 
 ### Output Examples:
 
-**Front-Run Transaction Example:**
+**Corrected Arbitrage Example - Using ACTUAL Net Profit:**
+{
+  "strategy": "Cross-DEX Arbitrage",
+  "confidence": "high",
+  "summary": "Triangular arbitrage yielding small but profitable WETH gain after transaction costs",
+  "narrative": [
+    "NET PROFIT ANALYSIS: +0.0035 WETH actual profit from arbitrage sequence",
+    "Transaction Flow: WETH → COMMS → WETH across multiple venues",
+    "Input Analysis: 525,363 COMMS tokens spent + 0.274679 WETH invested",
+    "Output Analysis: 0.278172 WETH received (total)",
+    "Actual Net Profit: 0.278172 - 0.274679 = 0.003493 WETH (~$12.25 at $3500 ETH)",
+    "Gas Cost: 0.0000589 ETH (~$2.06), leaving net profit of ~$10.19"
+  ],
+  "protocols": ["1inch v5 Router", "Wrapped Ether (WETH)"],
+  "financials": {
+    "revenue": "0.278172 WETH received (~$973.60)",
+    "cost": "0.274679 WETH + 0.0000589 ETH gas (~$964.41 total)",
+    "netProfit": "0.003493 WETH (~$12.25)",
+    "roi": "1.27%",
+    "breakdown": "Actual net gain of 0.0035 WETH after accounting for all token flows"
+  }
+}
+
+**Sandwich Attack Example:**
 {
   "strategy": "Sandwich Attack - Front-Run Transaction",
   "confidence": "high",
@@ -74,7 +107,7 @@ PRIORITIZE transaction patterns over financial data. Even if profit calculations
     "Pattern Detection: Enhanced algorithm identified this as the front-run transaction in a sandwich attack sequence",
     "Transaction Role: This transaction manipulates token prices before the victim transaction executes",
     "Attack Sequence: Front-run (this tx) → Victim → Back-run (completes the sandwich)",
-    "Token Manipulation: Transaction involves WETH/MINDFAK pair to set up price manipulation",
+    "Token Manipulation: Transaction involves WETH/TARGET pair to set up price manipulation",
     "MEV Strategy: Sophisticated attack designed to extract value from victim's transaction"
   ],
   "protocols": ["Uniswap V2"],
@@ -85,62 +118,14 @@ PRIORITIZE transaction patterns over financial data. Even if profit calculations
   }
 }
 
-**Victim Transaction Example:**
-{
-  "strategy": "Sandwich Attack - Victim Transaction", 
-  "confidence": "high",
-  "detectionMethod": "victim",
-  "summary": "This transaction is the victim of a detected sandwich attack, suffering from price manipulation",
-  "narrative": [
-    "Victim Identification: Enhanced pattern detection identified this as the victim transaction",
-    "Attack Sequence: Front-run → Victim (this tx) → Back-run",
-    "Price Impact: Transaction executed at manipulated prices due to front-running",
-    "Slippage: Victim suffered additional slippage from price manipulation"
-  ]
-}
-
-**Back-Run Transaction Example:**
-{
-  "strategy": "Sandwich Attack - Back-Run Transaction",
-  "confidence": "high", 
-  "detectionMethod": "back-run",
-  "summary": "This transaction is the back-run component completing the sandwich attack and extracting profit",
-  "narrative": [
-    "Pattern Detection: Identified as back-run transaction completing the sandwich attack",
-    "Attack Sequence: Front-run → Victim → Back-run (this tx)",
-    "Profit Extraction: This transaction captures the profit from the price manipulation",
-    "Attack Completion: Final step that realizes the MEV extraction from the victim"
-  ]
-}
-
-**Arbitrage Example - Proper Net Profit Calculation:**
-{
-  "strategy": "Cross-DEX Arbitrage",
-  "confidence": "high",
-  "summary": "Triangular arbitrage across multiple DEXes yielding small but profitable WETH gain",
-  "narrative": [
-    "Net Token Analysis: +0.0035 WETH profit from arbitrage sequence",
-    "Transaction involved WETH and COMMS tokens across multiple venues",
-    "Total WETH received: 0.278 WETH, Total WETH spent: 0.2747 WETH",
-    "Actual net profit: 0.278 - 0.2747 = 0.0035 WETH (~$12.25 at $3500 ETH)",
-    "Gas cost: 0.0000589 ETH (~$2.06), leaving net profit of ~$10.19"
-  ],
-  "protocols": ["Uniswap V2", "Multiple DEXes"],
-  "financials": {
-    "revenue": "$13.09 (total value received)",
-    "cost": "$3.40 (gas + opportunity cost)",
-    "netProfit": "0.0035 WETH (~$12.25)",
-    "roi": "285%" 
-  }
-}
-
 ### Analysis Rules:
-1. Use \`formattedAmount\` from data for all displayed values
-2. Reference detected protocols from metadata when available
+1. Use the CORRECTED \`netProfitOrLoss\` data which now shows actual net changes
+2. Reference \`totalInflows\` and \`totalOutflows\` for revenue/cost calculations
 3. Calculate ROI as (netProfit / totalCapitalUsed) * 100
 4. Express confidence based on data completeness and pattern clarity
 5. Include gas costs in financial analysis
 6. Use precise DeFi terminology and protocol names
+7. **IMPORTANT**: The \`formattedAmount\` in \`netProfitOrLoss\` now represents ACTUAL net profit/loss, not total amounts
 
 ### Input Data for Analysis:
 \`\`\`json
@@ -150,20 +135,28 @@ ${JSON.stringify(analysisData, null, 2)}
 Return ONLY the JSON object following the schema above. No additional text or markdown.
 `;
 
-    Logger.separator();
-    Logger.info('Sending enriched analysis to LLM for reporting...');
-    Logger.info(`🤖 LLM Input Summary: type=${analysisData.type}, hasDetectionMethod=${!!analysisData.detectionMethod}, hasSandwichPattern=${!!analysisData.sandwichPattern}, hasEnhancedDetection=${!!analysisData.enhancedDetection}, isSandwichAttack=${analysisData.isSandwichAttack}, sandwichDetected=${analysisData.sandwichDetected}`);
-    Logger.debug(`LLM Input Full Data: ${JSON.stringify(analysisData, null, 2)}`);
+  Logger.separator();
+  Logger.info('Sending CORRECTED enriched analysis to LLM for reporting...');
+  Logger.info(`🤖 LLM Input Summary: type=${analysisData.type}, hasDetectionMethod=${!!analysisData.detectionMethod}, hasSandwichPattern=${!!analysisData.sandwichPattern}, hasEnhancedDetection=${!!analysisData.enhancedDetection}, isSandwichAttack=${analysisData.isSandwichAttack}, sandwichDetected=${analysisData.sandwichDetected}`);
+  Logger.debug(`LLM Input Full Data: ${JSON.stringify(analysisData, null, 2)}`);
 
-    const openai = getOpenAI();
-    const response = await openai.chat.completions.create({
-        model: Config.LLM_MODEL,
-        messages: [ { role: 'user', content: prompt } ],
-        response_format: { type: 'json_object' },
-        temperature: 0.1,
+  // Log the corrected financial data for debugging
+  if (analysisData.financials?.netProfitOrLoss) {
+    Logger.info('💰 CORRECTED Financial Data being sent to LLM:');
+    analysisData.financials.netProfitOrLoss.forEach((item: any) => {
+      Logger.info(`   ${item.token.symbol}: ${item.isProfit ? '+' : '-'}${item.formattedAmount} (${item.netChange || 'net change'})`);
     });
+  }
 
-    const content = response.choices[ 0 ].message.content;
-    if (!content) throw new Error('LLM returned empty content.');
-    return JSON.parse(content);
+  const openai = getOpenAI();
+  const response = await openai.chat.completions.create({
+    model: Config.LLM_MODEL,
+    messages: [ { role: 'user', content: prompt } ],
+    response_format: { type: 'json_object' },
+    temperature: 0.1,
+  });
+
+  const content = response.choices[ 0 ].message.content;
+  if (!content) throw new Error('LLM returned empty content.');
+  return JSON.parse(content);
 }

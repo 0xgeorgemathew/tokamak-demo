@@ -2,56 +2,16 @@ import type {
     TokenInfo,
     ProtocolInteraction,
     TransactionMetadata,
+    ArbitrageAnalysis,
+    ArbitragePattern,
+    ArbitrageSwap,
+    EnrichedToken,
 } from '../types';
 import { ERC20_TRANSFER_TOPIC, NATIVE_ETH_ADDRESS, KNOWN_PROTOCOLS, Logger } from '../constants';
 import { extractTokenFlows, TokenMetadataManager } from './tokens';
 import { formatTokenAmount } from '../utils';
 
-export interface ArbitragePattern {
-    type: 'simple-arbitrage' | 'cross-protocol' | 'triangular' | 'flash-loan';
-    confidence: 'high' | 'medium' | 'low';
-    protocols: ProtocolInteraction[];
-    tokenPairs: string[];
-    priceImbalance?: number;
-    profitability: {
-        gross: string;
-        net: string;
-        roi: string;
-    };
-    complexity: number;
-}
 
-export interface ArbitrageAnalysis {
-    isArbitrage: boolean;
-    pattern?: ArbitragePattern;
-    swapPath: ArbitrageSwap[];
-    financials: {
-        inputTokens: EnrichedToken[];
-        outputTokens: EnrichedToken[];
-        netProfitOrLoss: EnrichedToken[];
-    };
-    gasEfficiency: {
-        totalGasUsed: number;
-        gasCostEth: string;
-        profitAfterGas: string;
-    };
-}
-
-interface ArbitrageSwap {
-    protocol: string;
-    tokenIn: TokenInfo;
-    tokenOut: TokenInfo;
-    amountIn: string;
-    amountOut: string;
-    priceImpact?: number;
-}
-
-interface EnrichedToken {
-    token: TokenInfo;
-    rawAmount: string;
-    formattedAmount: string;
-    isProfit: boolean;
-}
 
 /**
  * Main function to detect and analyze arbitrage patterns in a transaction
@@ -66,7 +26,7 @@ export async function detectArbitrage(
 
     const protocols = detectProtocols(trace);
     const tokenFlows = await extractTokenFlows(trace);
-    
+
     if (protocols.length < 2) {
         Logger.debug('Not enough protocols involved for arbitrage');
         return null;
@@ -82,7 +42,7 @@ export async function detectArbitrage(
     ]);
 
     const detectedPattern = patterns.find((p: ArbitragePattern | null) => p !== null);
-    
+
     if (!detectedPattern) {
         return null;
     }
@@ -111,22 +71,22 @@ async function detectSimpleArbitrage(
 ): Promise<ArbitragePattern | null> {
     if (protocols.length !== 2) return null;
 
-    const uniqueTokens = [...new Set(tokenFlows.map(f => f.token))];
+    const uniqueTokens = [ ...new Set(tokenFlows.map(f => f.token)) ];
     if (uniqueTokens.length !== 2) return null; // Simple arbitrage involves exactly 2 tokens
 
     // Check if we have buy/sell pattern
     const netChanges = calculateNetTokenChanges(tokenFlows);
-    const hasNeutralPosition = Object.values(netChanges).every(amount => 
+    const hasNeutralPosition = Object.values(netChanges).every(amount =>
         Math.abs(Number(amount)) < 1000 // Near zero net position
     );
 
     if (!hasNeutralPosition) return null;
 
     // Additional validation: check for same token pair across different protocols
-    const isDifferentProtocols = protocols[0].protocol !== protocols[1].protocol;
+    const isDifferentProtocols = protocols[ 0 ].protocol !== protocols[ 1 ].protocol;
     if (!isDifferentProtocols) return null;
 
-    Logger.info(`Simple arbitrage detected between ${protocols[0].protocol} and ${protocols[1].protocol}`);
+    Logger.info(`Simple arbitrage detected between ${protocols[ 0 ].protocol} and ${protocols[ 1 ].protocol}`);
 
     return {
         type: 'simple-arbitrage',
@@ -153,12 +113,12 @@ async function detectCrossProtocolArbitrage(
 ): Promise<ArbitragePattern | null> {
     if (protocols.length < 2) return null;
 
-    const uniqueTokens = [...new Set(tokenFlows.map(f => f.token))];
-    const protocolTypes = [...new Set(protocols.map(p => p.protocol))];
+    const uniqueTokens = [ ...new Set(tokenFlows.map(f => f.token)) ];
+    const protocolTypes = [ ...new Set(protocols.map(p => p.protocol)) ];
 
     // Look for DEX-to-DEX arbitrage patterns
-    const dexProtocols = protocolTypes.filter(p => 
-        p.toLowerCase().includes('uniswap') || 
+    const dexProtocols = protocolTypes.filter(p =>
+        p.toLowerCase().includes('uniswap') ||
         p.toLowerCase().includes('sushiswap') ||
         p.toLowerCase().includes('curve') ||
         p.toLowerCase().includes('balancer') ||
@@ -181,7 +141,7 @@ async function detectCrossProtocolArbitrage(
         tokenPairs: uniqueTokens,
         profitability: {
             gross: '0',
-            net: '0', 
+            net: '0',
             roi: '0'
         },
         complexity: protocols.length
@@ -197,15 +157,15 @@ async function detectTriangularArbitrage(
     protocols: ProtocolInteraction[],
     tokenFlows: any[]
 ): Promise<ArbitragePattern | null> {
-    const uniqueTokens = [...new Set(tokenFlows.map(f => f.token))];
-    
+    const uniqueTokens = [ ...new Set(tokenFlows.map(f => f.token)) ];
+
     // Triangular arbitrage typically involves 3+ tokens
     if (uniqueTokens.length < 3) return null;
 
     // Check for circular trading pattern
     const swapSequence = await detectSwapSequence(trace);
-    const isCircular = swapSequence.length >= 3 && 
-                      swapSequence[0].tokenIn === swapSequence[swapSequence.length - 1].tokenOut;
+    const isCircular = swapSequence.length >= 3 &&
+        swapSequence[ 0 ].tokenIn === swapSequence[ swapSequence.length - 1 ].tokenOut;
 
     if (!isCircular) return null;
 
@@ -235,7 +195,7 @@ async function detectFlashLoanArbitrage(
     tokenFlows: any[]
 ): Promise<ArbitragePattern | null> {
     // Look for flash loan indicators
-    const flashLoanProtocols = protocols.filter(p => 
+    const flashLoanProtocols = protocols.filter(p =>
         p.protocol.toLowerCase().includes('aave') ||
         p.protocol.toLowerCase().includes('compound') ||
         p.protocol.toLowerCase().includes('dydx') ||
@@ -247,7 +207,7 @@ async function detectFlashLoanArbitrage(
 
     // Check for large temporary token movements (borrow -> trade -> repay pattern)
     const largeFlows = tokenFlows.filter(f => BigInt(f.amount) > BigInt('1000000000000000000')); // > 1 ETH equivalent
-    
+
     if (largeFlows.length === 0) return null;
 
     // Additional validation: flash loans typically involve multiple protocols
@@ -265,7 +225,7 @@ async function detectFlashLoanArbitrage(
         type: 'flash-loan',
         confidence: flashLoanProtocols.length > 1 ? 'high' : 'medium',
         protocols,
-        tokenPairs: [...new Set(tokenFlows.map(f => f.token))],
+        tokenPairs: [ ...new Set(tokenFlows.map(f => f.token)) ],
         profitability: {
             gross: '0',
             net: '0',
@@ -284,15 +244,15 @@ async function detectStatisticalArbitrage(
     protocols: ProtocolInteraction[],
     tokenFlows: any[]
 ): Promise<ArbitragePattern | null> {
-    const uniqueTokens = [...new Set(tokenFlows.map(f => f.token))];
-    
+    const uniqueTokens = [ ...new Set(tokenFlows.map(f => f.token)) ];
+
     // Statistical arbitrage usually involves multiple protocols and complex routing
     if (protocols.length < 3 || uniqueTokens.length < 2) return null;
 
     // Check for complex routing patterns (many small swaps)
     const totalVolume = tokenFlows.reduce((sum, flow) => sum + BigInt(flow.amount), 0n);
     const avgFlowSize = totalVolume / BigInt(tokenFlows.length);
-    
+
     // Look for patterns suggesting statistical arbitrage:
     // 1. Multiple small trades
     // 2. Many protocols involved
@@ -331,8 +291,8 @@ async function buildSwapPath(
     const swapSequence = await detectSwapSequence(trace);
 
     for (const swap of swapSequence) {
-        const protocol = protocols.find(p => 
-            trace.transactionTrace.calls?.some((call: any) => 
+        const protocol = protocols.find(p =>
+            trace.transactionTrace.calls?.some((call: any) =>
                 call.to?.toLowerCase() === p.address.toLowerCase()
             )
         );
@@ -362,16 +322,16 @@ async function detectSwapSequence(trace: any): Promise<{
 }[]> {
     const sequence = [];
     const events = trace.transactionTrace.events || [];
-    
+
     // Group transfer events by transaction flow
-    const transferEvents = events.filter((event: any) => 
-        event.topics?.[0] === ERC20_TRANSFER_TOPIC
+    const transferEvents = events.filter((event: any) =>
+        event.topics?.[ 0 ] === ERC20_TRANSFER_TOPIC
     );
 
     // Simplified swap detection - look for consecutive transfers
     for (let i = 0; i < transferEvents.length - 1; i += 2) {
-        const transferIn = transferEvents[i];
-        const transferOut = transferEvents[i + 1];
+        const transferIn = transferEvents[ i ];
+        const transferOut = transferEvents[ i + 1 ];
 
         if (transferIn && transferOut) {
             const tokenIn = await TokenMetadataManager.getTokenInfo(1, transferIn.contract);
@@ -405,7 +365,7 @@ async function analyzeFinancials(
     const netChanges = await calculateNetChangesFromTrace(chainId, trace, controlledAddresses);
 
     const enrichedChanges = await Promise.all(
-        Object.entries(netChanges).map(async ([address, amount]) => {
+        Object.entries(netChanges).map(async ([ address, amount ]) => {
             const tokenInfo = await TokenMetadataManager.getTokenInfo(chainId, address);
             return {
                 token: tokenInfo,
@@ -451,7 +411,7 @@ async function analyzeGasEfficiency(
     // Calculate profit after gas (simplified)
     let profitAfterGas = '0 ETH';
     if (financials?.netProfitOrLoss) {
-        const ethProfit = financials.netProfitOrLoss.find((token: any) => 
+        const ethProfit = financials.netProfitOrLoss.find((token: any) =>
             token.token.address.toLowerCase() === NATIVE_ETH_ADDRESS.toLowerCase()
         );
         if (ethProfit) {
@@ -489,10 +449,10 @@ function detectProtocols(trace: any): ProtocolInteraction[] {
 
     // Match against known protocols
     for (const address of addresses) {
-        if (address && KNOWN_PROTOCOLS[address as keyof typeof KNOWN_PROTOCOLS]) {
+        if (address && KNOWN_PROTOCOLS[ address as keyof typeof KNOWN_PROTOCOLS ]) {
             protocols.push({
                 address,
-                protocol: KNOWN_PROTOCOLS[address as keyof typeof KNOWN_PROTOCOLS],
+                protocol: KNOWN_PROTOCOLS[ address as keyof typeof KNOWN_PROTOCOLS ],
                 confidence: 'high',
             });
         }
@@ -504,7 +464,7 @@ function detectProtocols(trace: any): ProtocolInteraction[] {
 function getControlledAddresses(trace: any): Set<string> {
     const initiator = trace.transactionTrace.from?.toLowerCase();
     const proxyContract = trace.transactionTrace.to?.toLowerCase();
-    const controlledAddresses = new Set([initiator, proxyContract]);
+    const controlledAddresses = new Set([ initiator, proxyContract ]);
 
     const findControlledRecursive = (call: any) => {
         if (controlledAddresses.has(call.from?.toLowerCase())) {
@@ -519,14 +479,14 @@ function getControlledAddresses(trace: any): Set<string> {
 
 function calculateNetTokenChanges(tokenFlows: any[]): Record<string, bigint> {
     const netChanges: Record<string, bigint> = {};
-    
+
     for (const flow of tokenFlows) {
-        if (!netChanges[flow.token]) {
-            netChanges[flow.token] = 0n;
+        if (!netChanges[ flow.token ]) {
+            netChanges[ flow.token ] = 0n;
         }
-        netChanges[flow.token] += BigInt(flow.amount) * (flow.direction === 'in' ? 1n : -1n);
+        netChanges[ flow.token ] += BigInt(flow.amount) * (flow.direction === 'in' ? 1n : -1n);
     }
-    
+
     return netChanges;
 }
 
@@ -539,28 +499,28 @@ async function calculateNetChangesFromTrace(
 
     // Process ERC20 transfers
     trace.transactionTrace.events?.forEach((event: any) => {
-        if (event.topics?.[0] === ERC20_TRANSFER_TOPIC && event.topics.length >= 3) {
+        if (event.topics?.[ 0 ] === ERC20_TRANSFER_TOPIC && event.topics.length >= 3) {
             const token = event.contract.toLowerCase();
-            const from = `0x${event.topics[1].slice(26)}`.toLowerCase();
-            const to = `0x${event.topics[2].slice(26)}`.toLowerCase();
+            const from = `0x${event.topics[ 1 ].slice(26)}`.toLowerCase();
+            const to = `0x${event.topics[ 2 ].slice(26)}`.toLowerCase();
             const amount = BigInt(event.data);
-            
-            netChanges[token] = netChanges[token] || 0n;
-            if (controlledAddresses.has(from)) netChanges[token] -= amount;
-            if (controlledAddresses.has(to)) netChanges[token] += amount;
+
+            netChanges[ token ] = netChanges[ token ] || 0n;
+            if (controlledAddresses.has(from)) netChanges[ token ] -= amount;
+            if (controlledAddresses.has(to)) netChanges[ token ] += amount;
         }
     });
 
     // Process ETH transfers
     const processEthTransfers = (call: any) => {
-        netChanges[NATIVE_ETH_ADDRESS] = netChanges[NATIVE_ETH_ADDRESS] || 0n;
+        netChanges[ NATIVE_ETH_ADDRESS ] = netChanges[ NATIVE_ETH_ADDRESS ] || 0n;
         const value = BigInt(call.value || '0x0');
         if (value > 0n) {
             if (controlledAddresses.has(call.from?.toLowerCase())) {
-                netChanges[NATIVE_ETH_ADDRESS] -= value;
+                netChanges[ NATIVE_ETH_ADDRESS ] -= value;
             }
             if (controlledAddresses.has(call.to?.toLowerCase())) {
-                netChanges[NATIVE_ETH_ADDRESS] += value;
+                netChanges[ NATIVE_ETH_ADDRESS ] += value;
             }
         }
         call.calls?.forEach(processEthTransfers);
@@ -570,7 +530,7 @@ async function calculateNetChangesFromTrace(
 
     // Subtract transaction fee
     const txFee = BigInt(trace.transactionTrace.gasUsed || '0x0') * BigInt(trace.transactionTrace.gasPrice || '0x0');
-    netChanges[NATIVE_ETH_ADDRESS] = (netChanges[NATIVE_ETH_ADDRESS] || 0n) - txFee;
+    netChanges[ NATIVE_ETH_ADDRESS ] = (netChanges[ NATIVE_ETH_ADDRESS ] || 0n) - txFee;
 
     return netChanges;
 }

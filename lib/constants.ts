@@ -146,11 +146,6 @@ export const KNOWN_PROTOCOLS = {
   '0x3d9819210a31b4961b30ef54be2aed79b9c9cd3b': 'Compound Comptroller',
   '0xccf4429db6322d5c611ee964527d42e5d685dd6a': 'Compound III Comet',
 
-  // --- Liquid Staking & Derivatives ---
-  '0xae7ab96520de3a18e5e111b5eaab095312d7fe84': 'Lido stETH Token',
-  '0xac3e018457b222d93114458476813ee31517e0b5': 'Rocket Pool rETH Token',
-  '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2': 'Wrapped Ether (WETH)',
-  '0x1f9840a85d5af5bf1d1762f925bdaddc4201f984': 'Uniswap (UNI) Token',
 
   // --- Other Infrastructure ---
   '0x00000000006c3852cbef3e08e8df289169ede581': 'OpenSea Seaport 1.1',
@@ -160,12 +155,12 @@ export const KNOWN_PROTOCOLS = {
 
 export const MEV_BOT_PATTERNS = {
   // --- Well-Known MEV Bots / Searchers ---
-  '0xa5a13f62ce1113838e0d9b4559b8caf5f76463c0': 'MEV Bot (Jaredfromsubway.eth)', // Famous sandwich bot
+  '0xa5a13f62ce1113838e0d9b4559b8caf5f76463c0': 'MEV Bot (Jaredfromsubway.eth)',
   '0x00000000003b3cc22af3ae1eac0440bcee416b40': 'MEV Bot (Generic)',
   '0x55555558d89e3a3885b5652a9d82b26a62f8373b': 'MEV Bot (Multi-strategy)',
   '0x271960a542b0e9e18b87010e976722df1492e854': 'MEV Bot (Arbitrage)',
   '0x0000000000000d6a469742a35639169f4543b59f': 'MEV Bot (Flashbots Searcher)',
-  '0xba11010101010101010101010101010101010101': 'Balancer Exploiter 1 (for reference)', // Not a bot, but an EOA of interest
+  '0xba11010101010101010101010101010101010101': 'Balancer Exploiter 1 (for reference)',
   '0xbadc0debadc0debadc0debadc0debadc0debadc0de': 'MEV Bot (vanity address)',
 
   // --- Your Original List (Still relevant) ---
@@ -177,7 +172,7 @@ export const MEV_BOT_PATTERNS = {
 
   // --- Additional Patterns ---
   '0x93a34a2e5572f88302061645e5d153835f8d998c': 'MEV Bot (SushiSwap & Uniswap)',
-  '0xda9dfa130df4de4673b89022ee50ff26f6ea73cf': 'MEV Bot (Beaver Build)', // Builder associated address
+  '0xda9dfa130df4de4673b89022ee50ff26f6ea73cf': 'MEV Bot (Beaver Build)',
 } as const;
 
 // Enhanced MEV bot detection patterns

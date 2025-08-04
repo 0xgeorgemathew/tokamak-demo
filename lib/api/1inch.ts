@@ -127,3 +127,19 @@ export async function getTransactionTrace(chainId: number, txHash: string, block
     const response = await axios.get(traceUrl);
     return response.data;
 }
+export async function getSpotPrices(chainId: number, addresses: string[]): Promise<any> {
+    Logger.info(`Fetching 1inch spot prices for ${addresses.length} addresses on chain ${chainId}`);
+
+    const addressString = addresses.join(',');
+    const url = `${Config.API_BASE_URL}/${chainId}/${addressString}?currency=USD`;
+
+    try {
+        const response = await axios.get(url);
+        return response.data;
+    } catch (error: any) {
+        if (error.response) {
+            Logger.error(`Axios Error calling 1inch Spot Price API: ${error.response.status} - ${JSON.stringify(error.response.data)}`);
+        }
+        throw error;
+    }
+}
